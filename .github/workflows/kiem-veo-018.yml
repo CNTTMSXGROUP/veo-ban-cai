@@ -74,6 +74,7 @@ jobs:
             [void](Find-Item $app 'Có bản 0.3.18 · Đang tải' 85)
             Write-Output 'TEST: Windows đã báo bản mới trong lúc tải gói.'
             $button = Find-Item $app 'Cập nhật ngay' 120
+            Write-Output "TEST: Gói đã tải và nút cài đã sẵn sàng."
             $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             $deadline = (Get-Date).AddMinutes(4)
             do {
@@ -82,6 +83,7 @@ jobs:
               if ($version -match '^0\.3\.18(\.0)?$') { break }
             } while ((Get-Date) -lt $deadline)
             if ($version -notmatch '^0\.3\.18(\.0)?$') { throw 'Chưa cập nhật phiên bản tại đúng thư mục cũ' }
+            Write-Output "TEST: Đã cài $version tại chỗ."
             $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
             if ((Get-ItemProperty $key).InstallLocation.Trim('"') -ne $install) { throw 'Vèo đã đổi thư mục cài' }
             $reopened = Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $app.Id } | Select-Object -First 1
@@ -89,9 +91,18 @@ jobs:
               Start-Sleep 8
               $reopened = Get-Process msx-phong-dung | Where-Object { $_.Id -ne $app.Id } | Select-Object -First 1
             }
+            Write-Output "TEST: Vèo đã tự mở lại PID $($reopened.Id)."
             [void](Find-Item $reopened 'Tiếp tục với Google' 45)
-            & (Join-Path $install 'node.exe') (Join-Path $root 'qa-drive-windows.mjs') $install
-            if ($LASTEXITCODE -ne 0) { throw 'Kiểm luồng sao lưu/khôi phục của bộ cài thật thất bại' }
+            Write-Output 'TEST: Đã hiện màn hình đăng nhập của bản vừa cài.'
+            $node = Join-Path $install 'node.exe'
+            if (!(Test-Path $node)) { throw 'Không thấy node.exe trong bộ cài' }
+            $proc = Start-Process $node -ArgumentList @(('"{0}"' -f (Join-Path $root 'qa-drive-windows.mjs')),('"{0}"' -f $install)) -RedirectStandardOutput (Join-Path $root 'drive.out') -RedirectStandardError (Join-Path $root 'drive.err') -Wait -PassThru
+            Get-Content (Join-Path $root 'drive.out'), (Join-Path $root 'drive.err')
+            if ($proc.ExitCode -ne 0) { throw "Thử Drive thoát với mã $($proc.ExitCode)" }
+          } catch {
+            Write-Output "TEST thất bại: $($_.Exception.Message)"
+            Write-Output "$($_.ScriptStackTrace)"
+            throw
           } finally {
             if (!$server.HasExited) { $server.Kill($true) }
             if (!$app.HasExited) { $app.Kill($true) }
