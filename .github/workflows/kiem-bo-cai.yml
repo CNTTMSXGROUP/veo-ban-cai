@@ -17,7 +17,7 @@ jobs:
           $setup = Join-Path $env:RUNNER_TEMP 'veo-setup.exe'
           gh release download v0.3.17 -R CNTTMSXGROUP/veo-ban-cai -p 'Veo_0.3.17_x64-setup.exe' -O $setup
           if ($LASTEXITCODE -ne 0) { throw 'Chưa tải được bộ cài từ bản nháp' }
-          if ((Get-FileHash $setup).Hash -ne 'c67b4b8e7cf896b7c67d88eaef51cbbd15a0877dd753211facb5d858754e5906') { throw 'Sai mã SHA-256' }
+          if ((Get-FileHash $setup).Hash -ne '8413588b6b5fec36d6d3bfe5e1e7ec20dcc6a5a65a8afbfb77c272b7227d0329') { throw 'Sai mã SHA-256' }
       - name: Cài và mở từ thư mục đã cài
         shell: pwsh
         run: |
@@ -45,6 +45,8 @@ jobs:
             if ($green -lt 0.30*$area -or $white -lt 0.12*$area -or $yellow -lt 0.018*$area) { throw 'Biểu tượng Windows sai logo Vèo' }
             Write-Output 'Windows nhận đúng logo Vèo nền xanh, biểu tượng trắng và nét vàng.'
           } finally { $bitmap.Dispose() }
+          $credits = Join-Path $install 'licenses/ANH-PHONG-CANH.txt'
+          if (!(Test-Path $credits) -or !(Select-String -Path $credits -SimpleMatch 'PHOTOGRAPH CREDITS')) { throw 'Thiếu ghi công ảnh phong cảnh trong bộ cài' }
           $app = Start-Process $exe.FullName -PassThru
           Add-Type -AssemblyName UIAutomationClient
           Add-Type -AssemblyName UIAutomationTypes
@@ -58,7 +60,8 @@ jobs:
               $nodes = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
               $names = @($nodes | ForEach-Object { $_.Current.Name })
               $editors = @($nodes | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit })
-              $ready = $names -contains 'Đăng nhập' -and $editors.Count -ge 2
+              $frames = @($names | Where-Object { $_ -like 'Xem cảnh *' } | Sort-Object -Unique)
+              $ready = $frames.Count -eq 11 -and $names -contains 'Đăng nhập' -and $names -contains 'Tiếp tục với Google' -and $names -contains 'Tạo tài khoản Vèo' -and $editors.Count -ge 2
               if ($ready) { break }
             }
             Start-Sleep -Seconds 1
