@@ -37,10 +37,10 @@ jobs:
             do {
               if ($app.HasExited) { throw 'Bản cũ đã thoát trước khi nhận cập nhật' }
               $cache = Get-ChildItem $root -Recurse -Filter 'ban-0.3.17.bin' -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($cache -and (Get-FileHash $cache.FullName).Hash -eq '8413588b6b5fec36d6d3bfe5e1e7ec20dcc6a5a65a8afbfb77c272b7227d0329') { break }
+              if ($cache -and (Get-FileHash $cache.FullName).Hash -eq 'f0cfeb72a89ce5e63de20c787851da6d9a50587ffbbb6c3885a8945da100a599') { break }
               Start-Sleep 2
             } while ((Get-Date) -lt $until)
-            if (!$cache -or (Get-FileHash $cache.FullName).Hash -ne '8413588b6b5fec36d6d3bfe5e1e7ec20dcc6a5a65a8afbfb77c272b7227d0329') { throw 'App chưa tải được đúng gói từ kênh chính thức' }
+            if (!$cache -or (Get-FileHash $cache.FullName).Hash -ne 'f0cfeb72a89ce5e63de20c787851da6d9a50587ffbbb6c3885a8945da100a599') { throw 'App chưa tải được đúng gói từ kênh chính thức' }
             Write-Output 'Vèo 0.3.16 đã tự tải gói 0.3.17 đúng SHA-256.'
             Start-Sleep 2
             $app.Refresh()
