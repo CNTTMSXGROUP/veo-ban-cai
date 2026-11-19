@@ -62,11 +62,13 @@ jobs:
             password:!!document.querySelector('input[type=password][autocomplete="current-password"]'),
             logo:!!document.querySelector('.d-brand img')?.naturalWidth
           }))()`;
-          let ready=false;
+          let ready=false, targets=[], lastState=null, lastError='';
+          const proc=Number(process.argv[3]);
           while(Date.now()<deadline && !ready){
             try {
               const pages=await(await fetch('http://127.0.0.1:'+process.argv[2]+'/json/list')).json();
-              const p=pages.find(p=>p.type==='page' && /^https?:\/\/tauri\.localhost(?:\/|$)/.test(p.url));
+              targets=pages.map(p=>[p.type,p.url?.split(/[?#]/)[0]]);
+              const p=pages.find(p=>p.type==='page' && p.url?.includes('tauri')) || pages.find(p=>p.type==='page');
               if(p){
                 const ws=new WebSocket(p.webSocketDebuggerUrl);
                 try {
@@ -76,17 +78,24 @@ jobs:
                     ws.onerror=()=>{clearTimeout(timer);no(Error('WebView2'))};
                     ws.onmessage=e=>{const obj=JSON.parse(e.data);if(obj.id===1){clearTimeout(timer);ok(obj.result?.result?.value)}};
                   });
+                  lastState=r;
                   ready=r?.heading==='Đăng nhập' && r.username && r.password && r.logo;
                 } finally{ws.close();}
               }
-            }catch{}
+            }catch(e){lastError=e.message + ' ' + (e.cause?.code || '');}
             if(!ready) await pause();
           }
+          if(!ready) console.log(JSON.stringify({targets,lastState,lastError,proc}));
           assert.ok(ready,'Bộ cài chưa hiển thị đủ màn đăng nhập MSX và logo');
           console.log('Đã mở màn đăng nhập MSX trong ứng dụng Windows, có hai trường và logo mới.');
           '@ | Set-Content -Encoding utf8 $probeLogin
-          & (Join-Path $install 'node.exe') $probeLogin $port
-          if ($LASTEXITCODE -ne 0) { throw 'Màn đăng nhập Windows chưa đạt' }
+          Write-Output ("Tiến trình mở: " + $exe.Name + " PID " + $app.Id)
+          & (Join-Path $install 'node.exe') $probeLogin $port $app.Id
+          if ($LASTEXITCODE -ne 0) {
+            Get-Process -Id $app.Id -ErrorAction SilentlyContinue | Select-Object ProcessName,Responding,MainWindowTitle,SessionId | Format-List
+            Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Select-Object -First 3 ProcessName,SessionId | Format-Table
+            throw 'Màn đăng nhập Windows chưa đạt'
+          }
           Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
           Start-Sleep -Seconds 12
           if ($app.HasExited) { throw 'Ứng dụng thoát sau khi mở' }
