@@ -86,12 +86,21 @@ jobs:
             Write-Output "TEST: Đã cài $version tại chỗ."
             $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
             if ((Get-ItemProperty $key).InstallLocation.Trim('"') -ne $install) { throw 'Vèo đã đổi thư mục cài' }
-            $reopened = Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $app.Id } | Select-Object -First 1
-            if (!$reopened) {
-              Start-Sleep 8
-              $reopened = Get-Process msx-phong-dung | Where-Object { $_.Id -ne $app.Id } | Select-Object -First 1
+            Add-Type -TypeDefinition 'public static class ShellStatus { [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern System.IntPtr GetShellWindow(); }'
+            Write-Output "TEST: ShellWindow=$([ShellStatus]::GetShellWindow()); app session=$($app.SessionId)"
+            $deadline = (Get-Date).AddSeconds(20)
+            do {
+              $reopened = Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $app.Id } | Select-Object -First 1
+              if ($reopened) { break }
+              Start-Sleep 1
+            } while ((Get-Date) -lt $deadline)
+            $auto = $null -ne $reopened
+            if (!$auto) {
+              Write-Output 'TEST: Chưa tự mở lại. Mở trực tiếp để kiểm tra ứng dụng và Drive.'
+              Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=(Get-Date).AddMinutes(-3);Id=1000,1001} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'phong-dung'} | Select-Object -First 2 | Format-List -Property Message
+              $reopened = Start-Process $exe -PassThru
             }
-            Write-Output "TEST: Vèo đã tự mở lại PID $($reopened.Id)."
+            Write-Output "TEST: Vèo đang chạy PID $($reopened.Id), auto=$auto."
             [void](Find-Item $reopened 'Tiếp tục với Google' 45)
             Write-Output 'TEST: Đã hiện màn hình đăng nhập của bản vừa cài.'
             $node = Join-Path $install 'node.exe'
@@ -99,6 +108,7 @@ jobs:
             $proc = Start-Process $node -ArgumentList @(('"{0}"' -f (Join-Path $root 'qa-drive-windows.mjs')),('"{0}"' -f $install)) -RedirectStandardOutput (Join-Path $root 'drive.out') -RedirectStandardError (Join-Path $root 'drive.err') -Wait -PassThru
             Get-Content (Join-Path $root 'drive.out'), (Join-Path $root 'drive.err')
             if ($proc.ExitCode -ne 0) { throw "Thử Drive thoát với mã $($proc.ExitCode)" }
+            if (!$auto) { throw "Cài đã xong nhưng Windows chưa tự mở lại Vèo" }
           } catch {
             Write-Output "TEST thất bại: $($_.Exception.Message)"
             Write-Output "$($_.ScriptStackTrace)"
