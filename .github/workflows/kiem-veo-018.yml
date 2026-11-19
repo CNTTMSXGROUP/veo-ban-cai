@@ -25,7 +25,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Không tải được ứng viên nháp' }
           Remove-Item Env:GH_TOKEN
           $oldSetup = Join-Path $root 'veo-cu.exe'
-          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.17-r2/Veo_0.3.17_x64-setup.exe' -OutFile $oldSetup
+          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.17-r2/Veo_0.3.17_x64-setup.exe' -TimeoutSec 90 -OutFile $oldSetup
           $custom = '${{ matrix.thu_muc }}' -eq 'tuy-chon'
           $install = if ($custom) { Join-Path $env:RUNNER_TEMP 'Veo-custom' } else { Join-Path $env:LOCALAPPDATA 'Vèo' }
           $argsSetup = if ($custom) { @('/S',"/D=$install") } else { @('/S') }
@@ -103,6 +103,14 @@ jobs:
             Write-Output "TEST: Vèo đang chạy PID $($reopened.Id), auto=$auto."
             [void](Find-Item $reopened 'Tiếp tục với Google' 45)
             Write-Output 'TEST: Đã hiện màn hình đăng nhập của bản vừa cài.'
+            $deadline = (Get-Date).AddSeconds(12)
+            do {
+              $installers = @(Get-CimInstance Win32_Process -Filter "Name LIKE '%setup%.exe'" | Where-Object { $_.CommandLine -match '/UPDATE.*\s/R' })
+              if (!$installers) { break }
+              Start-Sleep 1
+            } while ((Get-Date) -lt $deadline)
+            if ($installers) { throw 'Trình cài vẫn mở sau khi Vèo đã chạy lại' }
+            Write-Output 'TEST: Trình cài đã tự đóng.'
             $node = Join-Path $install 'node.exe'
             if (!(Test-Path $node)) { throw 'Không thấy node.exe trong bộ cài' }
             $fromMac = Join-Path $root 'ban-mau-mac'
