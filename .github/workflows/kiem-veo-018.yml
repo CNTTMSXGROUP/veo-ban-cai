@@ -129,6 +129,8 @@ jobs:
             Write-Output "$($_.ScriptStackTrace)"
             throw
           } finally {
+            $trace = Join-Path $env:TEMP 'veo-qa-install.txt'
+            if (Test-Path $trace) { Get-Content $trace }
             if (!$server.HasExited) { $server.Kill($true) }
             if (!$app.HasExited) { $app.Kill($true) }
           }
