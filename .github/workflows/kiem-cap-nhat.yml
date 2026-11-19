@@ -5,6 +5,10 @@ on:
 permissions: {}
 jobs:
   cap-nhat:
+    strategy:
+      fail-fast: false
+      matrix:
+        thu_muc: [mac-dinh, tuy-chon]
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -15,10 +19,17 @@ jobs:
           $setup = Join-Path $env:RUNNER_TEMP 'veo-cu.exe'
           Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.16/Veo_0.3.16_x64-setup.exe' -OutFile $setup
           if ((Get-FileHash $setup).Hash -ne '0f5aafdb099d904af8ff92c101c54a241a5a7642662c74caccead439e8d58871') { throw 'Sai bộ cài cũ' }
-          $p = Start-Process $setup -ArgumentList '/S',"/D=$install" -Wait -PassThru
+          if ('${{ matrix.thu_muc }}' -eq 'mac-dinh') {
+            $install = Join-Path $env:LOCALAPPDATA 'Vèo'
+            $p = Start-Process $setup -ArgumentList '/S' -Wait -PassThru
+          } else {
+            $p = Start-Process $setup -ArgumentList '/S',"/D=$install" -Wait -PassThru
+          }
           if ($p.ExitCode -ne 0) { throw 'Cài 0.3.16 thất bại' }
           $old = Get-ChildItem $install -File -Filter '*.exe' | Where-Object { $_.VersionInfo.ProductVersion -match '^0\.3\.16(\.0)?$' } | Select-Object -First 1
           if (!$old) { throw 'Không thấy app 0.3.16' }
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
+          Get-ItemProperty $key | Select-Object Publisher,InstallLocation,DisplayVersion | Format-Table
           $app = Start-Process $old.FullName -PassThru
           try {
             $root = Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'
@@ -37,6 +48,13 @@ jobs:
             $until = (Get-Date).AddMinutes(3)
             do {
               Start-Sleep 2
+              $where = (Get-ItemProperty $key -ErrorAction SilentlyContinue).InstallLocation
+              if ($where) {
+                $elsewhere = Join-Path ($where.Trim('"')) $old.Name
+                if ((Test-Path $elsewhere) -and $elsewhere -ne $old.FullName -and [Diagnostics.FileVersionInfo]::GetVersionInfo($elsewhere).ProductVersion -match '^0\.3\.17(\.0)?$') {
+                  throw "Bộ cài đã chuyển từ $($old.FullName) sang $elsewhere"
+                }
+              }
               $ver = [Diagnostics.FileVersionInfo]::GetVersionInfo($old.FullName).ProductVersion
               if ($ver -match '^0\.3\.17(\.0)?$') { break }
             } while ((Get-Date) -lt $until)
