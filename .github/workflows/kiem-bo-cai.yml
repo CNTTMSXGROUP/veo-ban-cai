@@ -1,0 +1,86 @@
+name: Kiểm bộ cài Vèo 0.3.15
+on:
+  push:
+    branches: [codex/kiem-veo-0-3-15]
+permissions: {}
+jobs:
+  cai-va-mo:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Tải đúng bộ cài
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP 'veo-setup.exe'
+          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.15/Veo_0.3.15_x64-setup.exe' -OutFile $setup
+          if ((Get-FileHash $setup).Hash -ne 'f977e6445b10482b9abe26f1b68a476b167c3de3b4fc029009ded79ee4827055') { throw 'Sai mã SHA-256' }
+      - name: Cài và mở từ thư mục đã cài
+        shell: pwsh
+        run: |
+          $install = Join-Path $env:RUNNER_TEMP 'Veo'
+          $installer = Start-Process (Join-Path $env:RUNNER_TEMP 'veo-setup.exe') -ArgumentList '/S',"/D=$install" -PassThru
+          if (!$installer.WaitForExit(180000) -or $installer.ExitCode -ne 0) { throw 'Trình cài không hoàn tất' }
+          $exe = Get-ChildItem $install -File -Filter '*.exe' | Where-Object { $_.VersionInfo.ProductVersion -match '^0\.3\.15(\.0)?$' } | Select-Object -First 1
+          if (!$exe) { throw 'Thiếu ứng dụng đúng phiên bản' }
+          $app = Start-Process $exe.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($app.HasExited) { throw 'Ứng dụng thoát sau khi mở' }
+          $worker = Join-Path $install 'worker/dung-app.mjs'
+          $node = Join-Path $install 'node.exe'
+          if (!(Test-Path $node) -or !(Test-Path $worker)) { throw 'Thiếu phần dựng đã cài' }
+          foreach ($f in @('ffmpeg','ffprobe')) {
+            $versionInfo = & (Join-Path $install "$f.exe") -version
+            if ($LASTEXITCODE -ne 0) { throw "Lỗi công cụ $f" }
+          }
+          & (Join-Path $install 'ffmpeg.exe') -v error -f lavfi -i 'sine=d=0.25:r=48000' -c:a libmp3lame -y (Join-Path $env:RUNNER_TEMP 'thu.mp3')
+          if ($LASTEXITCODE -ne 0) { throw 'Bộ cài chưa xuất được MP3' }
+          $workerDir = Split-Path $worker
+          $probe = Join-Path $env:RUNNER_TEMP 'kiem-mo-hinh.mjs'
+          @'
+          import { readFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          import { pathToFileURL } from 'node:url';
+          const base = process.argv[2];
+          const ort = await import(pathToFileURL(join(base,'node_modules/onnxruntime-web/index.mjs')));
+          ort.env.wasm.numThreads = 1;
+          const s = await ort.InferenceSession.create(readFileSync(join(base,'models/modnet/model.onnx')));
+          const x = new ort.Tensor('float32',new Float32Array(3*512*288),[1,3,512,288]);
+          const y = (await s.run({[s.inputNames[0]]:x}))[s.outputNames[0]];
+          if(y.data.length!==512*288 || !y.data.every(Number.isFinite)) throw Error('Mat na khong hop le');
+          await s.release();
+          const face = await ort.InferenceSession.create(readFileSync(join(base,'models/face/model.onnx')),{logSeverityLevel:3});
+          const pixels = new ort.Tensor('float32',new Float32Array(3*240*320),[1,3,240,320]);
+          const result = await face.run({[face.inputNames[0]]:pixels});
+          if(!result.scores?.data.length || !result.boxes?.data.every(Number.isFinite)) throw Error('Bo do mat chua san sang');
+          await face.release();
+          for (const model of ['spleeter/vocals.fp16.onnx','spleeter/accompaniment.fp16.onnx','silero-vad/silero_vad.onnx']) {
+            const session=await ort.InferenceSession.create(readFileSync(join(base,'models',model)));
+            const t=(xs,shape)=>new ort.Tensor('float32',new Float32Array(xs),shape);
+            const feeds=model.startsWith('silero') ? {input:t(576,[1,576]),state:t(256,[2,1,128]),sr:new ort.Tensor('int64',BigInt64Array.of(16000n),[])} : {[session.inputNames[0]]:t(1048576,[2,1,512,1024])};
+            const out=(await session.run(feeds))[session.outputNames[0]].data;
+            if(!out.length || !out.every(Number.isFinite)) throw Error(model);
+            await session.release();
+          }
+          console.log('Windows da tinh mat na va phan tich khuon mat bang CPU.');
+          '@ | Set-Content -Encoding utf8 $probe
+          & $node $probe $workerDir
+          if ($LASTEXITCODE -ne 0) { throw 'Lỗi mô hình trong bộ cài' }
+          $p = [Diagnostics.ProcessStartInfo]::new($node)
+          $p.ArgumentList.Add($worker)
+          $p.UseShellExecute = $false
+          $p.RedirectStandardOutput = $true
+          $p.RedirectStandardInput = $true
+          $p.Environment['DUNG_DATA'] = Join-Path $env:RUNNER_TEMP 'du-an-thu'
+          $child = [Diagnostics.Process]::Start($p)
+          try {
+            $read = $child.StandardOutput.ReadLineAsync()
+            if (!$read.Wait(45000)) { throw 'Phần dựng chưa sẵn sàng' }
+            $boot = $read.Result | ConvertFrom-Json
+            if (!$boot.port -or !$boot.token) { throw 'Phần dựng chưa khởi động' }
+            $state = Invoke-RestMethod ("http://127.0.0.1:{0}/api/state?t={1}" -f $boot.port,$boot.token)
+            if ($null -eq $state) { throw 'Thiếu trạng thái ứng dụng' }
+            Write-Output "Đã cài và mở Vèo $($exe.VersionInfo.ProductVersion), phần dựng trả trạng thái."
+          } finally {
+            if (!$child.HasExited) { $child.Kill($true) }
+            if (!$app.HasExited) { $app.Kill($true) }
+          }
