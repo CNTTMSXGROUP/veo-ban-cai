@@ -1,0 +1,45 @@
+name: Thử cập nhật Vèo ngay trong ứng dụng Windows
+on:
+  push:
+    branches: [codex/kiem-cap-nhat-veo-0-3-15]
+permissions: {}
+jobs:
+  cap-nhat:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Cài và mở bản 0.3.14
+        shell: pwsh
+        run: |
+          $install = Join-Path $env:RUNNER_TEMP 'Veo'
+          $setup = Join-Path $env:RUNNER_TEMP 'veo-cu.exe'
+          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.14/Veo_0.3.14_x64-setup.exe' -OutFile $setup
+          if ((Get-FileHash $setup).Hash -ne 'f7b3feecb5cfdc80bd0c62f8ccaa791796709dc799ef67cc69d7b2caaf92d393') { throw 'Sai bộ cài cũ' }
+          $p = Start-Process $setup -ArgumentList '/S',"/D=$install" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Cài 0.3.14 thất bại' }
+          $old = Get-ChildItem $install -File -Filter '*.exe' | Where-Object { $_.VersionInfo.ProductVersion -match '^0\.3\.14(\.0)?$' } | Select-Object -First 1
+          if (!$old) { throw 'Không thấy app 0.3.14' }
+          $app = Start-Process $old.FullName -PassThru
+          try {
+            $root = Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'
+            $until = (Get-Date).AddMinutes(4)
+            do {
+              if ($app.HasExited) { throw 'Bản cũ đã thoát trước khi nhận cập nhật' }
+              $cache = Get-ChildItem $root -Recurse -Filter 'ban-0.3.15.bin' -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($cache -and (Get-FileHash $cache.FullName).Hash -eq 'f977e6445b10482b9abe26f1b68a476b167c3de3b4fc029009ded79ee4827055') { break }
+              Start-Sleep 2
+            } while ((Get-Date) -lt $until)
+            if (!$cache -or (Get-FileHash $cache.FullName).Hash -ne 'f977e6445b10482b9abe26f1b68a476b167c3de3b4fc029009ded79ee4827055') { throw 'App chưa tải được đúng gói từ kênh chính thức' }
+            Write-Output 'Vèo 0.3.14 đã tự tải gói 0.3.15 đúng SHA-256.'
+            Start-Sleep 2
+            $app.Refresh()
+            if (!$app.CloseMainWindow()) { throw 'Không thể đóng cửa sổ Vèo theo cách thông thường' }
+            $until = (Get-Date).AddMinutes(3)
+            do {
+              Start-Sleep 2
+              $ver = [Diagnostics.FileVersionInfo]::GetVersionInfo($old.FullName).ProductVersion
+              if ($ver -match '^0\.3\.15(\.0)?$') { break }
+            } while ((Get-Date) -lt $until)
+            if ($ver -notmatch '^0\.3\.15(\.0)?$') { throw "Ứng dụng tại vị trí cũ vẫn là $ver" }
+            Write-Output "Đã nâng tại chỗ lên Vèo $ver trên Windows."
+          } finally { if (!$app.HasExited) { $app.Kill($true) } }
