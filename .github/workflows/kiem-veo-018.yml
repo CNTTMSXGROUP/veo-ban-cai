@@ -82,7 +82,12 @@ jobs:
               try { $version = (Get-Item $exe).VersionInfo.ProductVersion } catch { $version = '' }
               if ($version -match '^0\.3\.18(\.0)?$') { break }
             } while ((Get-Date) -lt $deadline)
-            if ($version -notmatch '^0\.3\.18(\.0)?$') { throw 'Chưa cập nhật phiên bản tại đúng thư mục cũ' }
+            if ($version -notmatch '^0\.3\.18(\.0)?$') {
+              Write-Output "TEST: Bản ở thư mục cũ $install hiện là $version. Tiến trình cũ đã đóng=$($app.HasExited)"
+              Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo' | Select-Object DisplayVersion,InstallLocation | Format-List
+              Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match '/UPDATE' -and $_.Name -like '*setup*.exe' } | Select-Object Name,ProcessId,CommandLine | Format-List
+              throw 'Chưa cập nhật phiên bản tại đúng thư mục cũ'
+            }
             Write-Output "TEST: Đã cài $version tại chỗ."
             $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
             if ((Get-ItemProperty $key).InstallLocation.Trim('"') -ne $install) { throw 'Vèo đã đổi thư mục cài' }
