@@ -1,7 +1,7 @@
-name: Thử cập nhật Vèo ngay trong ứng dụng Windows
+name: Kiểm bộ cài 0.3.17 trước khi mở lại cập nhật Windows
 on:
   push:
-    branches: [codex/kiem-cap-nhat-veo-0-3-17]
+    branches: [codex/kiem-goi-veo-0317-r2]
 permissions: {}
 jobs:
   cap-nhat:
@@ -30,34 +30,13 @@ jobs:
           if (!$old) { throw 'Không thấy app 0.3.16' }
           $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
           Get-ItemProperty $key | Select-Object Publisher,InstallLocation,DisplayVersion | Format-Table
-          $app = Start-Process $old.FullName -PassThru
-          try {
-            $root = Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'
-            $until = (Get-Date).AddMinutes(4)
-            do {
-              if ($app.HasExited) { throw 'Bản cũ đã thoát trước khi nhận cập nhật' }
-              $cache = Get-ChildItem $root -Recurse -Filter 'ban-0.3.17.bin' -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($cache -and (Get-FileHash $cache.FullName).Hash -eq '8413588b6b5fec36d6d3bfe5e1e7ec20dcc6a5a65a8afbfb77c272b7227d0329') { break }
-              Start-Sleep 2
-            } while ((Get-Date) -lt $until)
-            if (!$cache -or (Get-FileHash $cache.FullName).Hash -ne '8413588b6b5fec36d6d3bfe5e1e7ec20dcc6a5a65a8afbfb77c272b7227d0329') { throw 'App chưa tải được đúng gói từ kênh chính thức' }
-            Write-Output 'Vèo 0.3.16 đã tự tải gói 0.3.17 đúng SHA-256.'
-            Start-Sleep 2
-            $app.Refresh()
-            if (!$app.CloseMainWindow()) { throw 'Không thể đóng cửa sổ Vèo theo cách thông thường' }
-            $until = (Get-Date).AddMinutes(3)
-            do {
-              Start-Sleep 2
-              $where = (Get-ItemProperty $key -ErrorAction SilentlyContinue).InstallLocation
-              if ($where) {
-                $elsewhere = Join-Path ($where.Trim('"')) $old.Name
-                if ((Test-Path $elsewhere) -and $elsewhere -ne $old.FullName -and [Diagnostics.FileVersionInfo]::GetVersionInfo($elsewhere).ProductVersion -match '^0\.3\.17(\.0)?$') {
-                  throw "Bộ cài đã chuyển từ $($old.FullName) sang $elsewhere"
-                }
-              }
-              $ver = [Diagnostics.FileVersionInfo]::GetVersionInfo($old.FullName).ProductVersion
-              if ($ver -match '^0\.3\.17(\.0)?$') { break }
-            } while ((Get-Date) -lt $until)
-            if ($ver -notmatch '^0\.3\.17(\.0)?$') { throw "Ứng dụng tại vị trí cũ vẫn là $ver" }
-            Write-Output "Đã nâng tại chỗ lên Vèo $ver trên Windows."
-          } finally { if (!$app.HasExited) { $app.Kill($true) } }
+          $moi = Join-Path $env:RUNNER_TEMP 'bo-cai-moi.exe'
+          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.17-r2/Veo_0.3.17_x64-setup.exe' -OutFile $moi
+          if ((Get-FileHash $moi).Hash -ne 'f0cfeb72a89ce5e63de20c787851da6d9a50587ffbbb6c3885a8945da100a599') { throw 'Sai gói Windows' }
+          $p = Start-Process $moi -ArgumentList '/P','/UPDATE' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Cập nhật lỗi' }
+          $ver = [Diagnostics.FileVersionInfo]::GetVersionInfo($old.FullName).ProductVersion
+          $noiCai = (Get-ItemProperty $key).InstallLocation.Trim('"')
+          if ($ver -notmatch '^0\.3\.17(\.0)?$' -or $noiCai -ne $install) { throw "Sai vị trí hoặc phiên bản $noiCai $ver" }
+          if (!(Test-Path (Join-Path $install 'licenses/ANH-PHONG-CANH.txt'))) { throw 'Thiếu ghi công ảnh' }
+          Write-Output "Vèo đã nâng tại chỗ ở $noiCai lên $ver."
