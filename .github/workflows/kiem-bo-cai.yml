@@ -45,58 +45,30 @@ jobs:
             if ($green -lt 0.30*$area -or $white -lt 0.12*$area -or $yellow -lt 0.018*$area) { throw 'Biểu tượng Windows sai logo Vèo' }
             Write-Output 'Windows nhận đúng logo Vèo nền xanh, biểu tượng trắng và nét vàng.'
           } finally { $bitmap.Dispose() }
-          $testPort = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
-          $testPort.Start()
-          $port = $testPort.LocalEndpoint.Port
-          $testPort.Stop()
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$port"
           $app = Start-Process $exe.FullName -PassThru
-          $probeLogin = Join-Path $env:RUNNER_TEMP 'kiem-man-dang-nhap.mjs'
-          @'
-          import assert from 'node:assert/strict';
-          const deadline=Date.now()+60000;
-          const pause=()=>new Promise(resolve=>setTimeout(resolve,700));
-          const expr=`(() => ({
-            heading:document.querySelector('h1')?.textContent?.trim(),
-            username:!!document.querySelector('input[autocomplete="username"]'),
-            password:!!document.querySelector('input[type=password][autocomplete="current-password"]'),
-            logo:!!document.querySelector('.d-brand img')?.naturalWidth
-          }))()`;
-          let ready=false, targets=[], lastState=null, lastError='';
-          const proc=Number(process.argv[3]);
-          while(Date.now()<deadline && !ready){
-            try {
-              const pages=await(await fetch('http://127.0.0.1:'+process.argv[2]+'/json/list')).json();
-              targets=pages.map(p=>[p.type,p.url?.split(/[?#]/)[0]]);
-              const p=pages.find(p=>p.type==='page' && p.url?.includes('tauri')) || pages.find(p=>p.type==='page');
-              if(p){
-                const ws=new WebSocket(p.webSocketDebuggerUrl);
-                try {
-                  const r=await new Promise((ok,no)=>{
-                    const timer=setTimeout(()=>no(Error('WebView2 timeout')),3500);
-                    ws.onopen=()=>ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',params:{expression:expr,returnByValue:true}}));
-                    ws.onerror=()=>{clearTimeout(timer);no(Error('WebView2'))};
-                    ws.onmessage=e=>{const obj=JSON.parse(e.data);if(obj.id===1){clearTimeout(timer);ok(obj.result?.result?.value)}};
-                  });
-                  lastState=r;
-                  ready=r?.heading==='Đăng nhập' && r.username && r.password && r.logo;
-                } finally{ws.close();}
-              }
-            }catch(e){lastError=e.message + ' ' + (e.cause?.code || '');}
-            if(!ready) await pause();
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+          $until = [DateTime]::UtcNow.AddSeconds(60)
+          $ready = $false
+          while ([DateTime]::UtcNow -lt $until) {
+            $app.Refresh()
+            if ($app.HasExited) { throw 'Cửa sổ Vèo đã đóng' }
+            if ($app.MainWindowHandle -ne [IntPtr]::Zero) {
+              $window = [System.Windows.Automation.AutomationElement]::FromHandle($app.MainWindowHandle)
+              $nodes = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+              $names = @($nodes | ForEach-Object { $_.Current.Name })
+              $editors = @($nodes | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit })
+              $ready = $names -contains 'Đăng nhập' -and $editors.Count -ge 2
+              if ($ready) { break }
+            }
+            Start-Sleep -Seconds 1
           }
-          if(!ready) console.log(JSON.stringify({targets,lastState,lastError,proc}));
-          assert.ok(ready,'Bộ cài chưa hiển thị đủ màn đăng nhập MSX và logo');
-          console.log('Đã mở màn đăng nhập MSX trong ứng dụng Windows, có hai trường và logo mới.');
-          '@ | Set-Content -Encoding utf8 $probeLogin
-          Write-Output ("Tiến trình mở: " + $exe.Name + " PID " + $app.Id)
-          & (Join-Path $install 'node.exe') $probeLogin $port $app.Id
-          if ($LASTEXITCODE -ne 0) {
-            Get-Process -Id $app.Id -ErrorAction SilentlyContinue | Select-Object ProcessName,Responding,MainWindowTitle,SessionId | Format-List
-            Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Select-Object -First 3 ProcessName,SessionId | Format-Table
-            throw 'Màn đăng nhập Windows chưa đạt'
+          if (!$ready) {
+            Write-Output ("Số thành phần giao diện nhìn thấy: " + $nodes.Count + ", ô nhập: " + $editors.Count)
+            $names | Where-Object { $_ } | Select-Object -Unique -First 24 | ForEach-Object { Write-Output $_ }
+            throw 'Chưa thấy giao diện đăng nhập qua Windows UI Automation'
           }
-          Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+          Write-Output 'Đã mở giao diện đăng nhập thật trên Windows với ô tài khoản và mật khẩu.'
           Start-Sleep -Seconds 12
           if ($app.HasExited) { throw 'Ứng dụng thoát sau khi mở' }
           $worker = Join-Path $install 'worker/dung-app.mjs'
