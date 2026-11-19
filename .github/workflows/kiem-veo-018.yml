@@ -1,0 +1,98 @@
+name: Kiểm Drive và cập nhật Vèo 0.3.18 trên Windows
+on:
+  push:
+    branches: [codex/kiem-veo-018]
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        thu_muc: [mac-dinh, tuy-chon]
+    steps:
+      - name: Cài bản cũ, nhận cập nhật và kiểm Drive
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'veo-qa-018'
+          New-Item -ItemType Directory $root | Out-Null
+          gh release download qa-veo-018-windows --repo CNTTMSXGROUP/veo-ban-cai --dir $root --pattern latest.json --pattern Veo_0.3.18_x64-setup.exe --pattern qa-bootstrap.exe --pattern qa-drive-windows.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Không tải được ứng viên nháp' }
+          Remove-Item Env:GH_TOKEN
+          $oldSetup = Join-Path $root 'veo-cu.exe'
+          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.17-r2/Veo_0.3.17_x64-setup.exe' -OutFile $oldSetup
+          $custom = '${{ matrix.thu_muc }}' -eq 'tuy-chon'
+          $install = if ($custom) { Join-Path $env:RUNNER_TEMP 'Veo-custom' } else { Join-Path $env:LOCALAPPDATA 'Vèo' }
+          $argsSetup = if ($custom) { @('/S',"/D=$install") } else { @('/S') }
+          $setup = Start-Process $oldSetup -ArgumentList $argsSetup -Wait -PassThru
+          if ($setup.ExitCode) { throw "Cài bản cũ lỗi $($setup.ExitCode)" }
+          $exe = Join-Path $install 'msx-phong-dung.exe'
+          if ((Get-Item $exe).VersionInfo.ProductVersion -notmatch '^0\.3\.17(\.0)?$') { throw 'Chưa cài được 0.3.17' }
+          Copy-Item (Join-Path $root 'qa-bootstrap.exe') $exe -Force
+          $manifest = Get-Content (Join-Path $root 'latest.json') -Raw | ConvertFrom-Json
+          $manifest.notes = ''
+          $manifest.platforms.'windows-x86_64'.url = 'http://127.0.0.1:4599/Veo_0.3.18_x64-setup.exe'
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $root 'ready.json') -Encoding utf8
+          @'
+          import http.server, pathlib, time
+          class Handler(http.server.SimpleHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path == '/latest.json':
+                      if not pathlib.Path('ready.json').exists() or not pathlib.Path('publish').exists():
+                          self.send_response(204); self.end_headers(); return
+                      self.path = '/ready.json'
+                  if self.path.endswith('-setup.exe'): time.sleep(6)
+                  super().do_GET()
+          http.server.ThreadingHTTPServer(('127.0.0.1',4599),Handler).serve_forever()
+          '@ | Set-Content (Join-Path $root 'feed.py') -Encoding utf8
+          $server = Start-Process python -ArgumentList 'feed.py' -WorkingDirectory $root -PassThru
+          $app = Start-Process $exe -PassThru
+          Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+          function Find-Item($proc,$name,[int]$seconds) {
+            $until = (Get-Date).AddSeconds($seconds)
+            do {
+              $proc.Refresh()
+              if ($proc.HasExited) { throw 'Ứng dụng đã đóng trước khi hiện trạng thái' }
+              if ($proc.MainWindowHandle -ne [IntPtr]::Zero) {
+                $window = [System.Windows.Automation.AutomationElement]::FromHandle($proc.MainWindowHandle)
+                $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
+                $found = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
+                if ($found) { return $found }
+              }
+              Start-Sleep -Milliseconds 150
+            } while ((Get-Date) -lt $until)
+            throw "Không thấy giao diện: $name"
+          }
+          try {
+            [void](Find-Item $app 'Chưa có phiên bản mới' 45)
+            New-Item -ItemType File (Join-Path $root 'publish') | Out-Null
+            [void](Find-Item $app 'Có bản 0.3.18 · Đang tải' 85)
+            Write-Output 'TEST: Windows đã báo bản mới trong lúc tải gói.'
+            $button = Find-Item $app 'Cập nhật ngay' 120
+            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            $deadline = (Get-Date).AddMinutes(4)
+            do {
+              Start-Sleep 1
+              try { $version = (Get-Item $exe).VersionInfo.ProductVersion } catch { $version = '' }
+              if ($version -match '^0\.3\.18(\.0)?$') { break }
+            } while ((Get-Date) -lt $deadline)
+            if ($version -notmatch '^0\.3\.18(\.0)?$') { throw 'Chưa cập nhật phiên bản tại đúng thư mục cũ' }
+            $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
+            if ((Get-ItemProperty $key).InstallLocation.Trim('"') -ne $install) { throw 'Vèo đã đổi thư mục cài' }
+            $reopened = Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $app.Id } | Select-Object -First 1
+            if (!$reopened) {
+              Start-Sleep 8
+              $reopened = Get-Process msx-phong-dung | Where-Object { $_.Id -ne $app.Id } | Select-Object -First 1
+            }
+            [void](Find-Item $reopened 'Tiếp tục với Google' 45)
+            & (Join-Path $install 'node.exe') (Join-Path $root 'qa-drive-windows.mjs') $install
+            if ($LASTEXITCODE -ne 0) { throw 'Kiểm luồng sao lưu/khôi phục của bộ cài thật thất bại' }
+          } finally {
+            if (!$server.HasExited) { $server.Kill($true) }
+            if (!$app.HasExited) { $app.Kill($true) }
+          }
