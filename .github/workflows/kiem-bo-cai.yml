@@ -1,7 +1,7 @@
-name: Kiểm bộ cài Vèo 0.3.15
+name: Kiểm bộ cài Vèo 0.3.16
 on:
   push:
-    branches: [codex/kiem-veo-0-3-15]
+    branches: [codex/kiem-veo-0-3-16]
 permissions: {}
 jobs:
   cai-va-mo:
@@ -12,15 +12,15 @@ jobs:
         shell: pwsh
         run: |
           $setup = Join-Path $env:RUNNER_TEMP 'veo-setup.exe'
-          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.15/Veo_0.3.15_x64-setup.exe' -OutFile $setup
-          if ((Get-FileHash $setup).Hash -ne 'f977e6445b10482b9abe26f1b68a476b167c3de3b4fc029009ded79ee4827055') { throw 'Sai mã SHA-256' }
+          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.16/Veo_0.3.16_x64-setup.exe' -OutFile $setup
+          if ((Get-FileHash $setup).Hash -ne '0f5aafdb099d904af8ff92c101c54a241a5a7642662c74caccead439e8d58871') { throw 'Sai mã SHA-256' }
       - name: Cài và mở từ thư mục đã cài
         shell: pwsh
         run: |
           $install = Join-Path $env:RUNNER_TEMP 'Veo'
           $installer = Start-Process (Join-Path $env:RUNNER_TEMP 'veo-setup.exe') -ArgumentList '/S',"/D=$install" -PassThru
           if (!$installer.WaitForExit(180000) -or $installer.ExitCode -ne 0) { throw 'Trình cài không hoàn tất' }
-          $exe = Get-ChildItem $install -File -Filter '*.exe' | Where-Object { $_.VersionInfo.ProductVersion -match '^0\.3\.15(\.0)?$' } | Select-Object -First 1
+          $exe = Get-ChildItem $install -File -Filter '*.exe' | Where-Object { $_.VersionInfo.ProductVersion -match '^0\.3\.16(\.0)?$' } | Select-Object -First 1
           if (!$exe) { throw 'Thiếu ứng dụng đúng phiên bản' }
           $app = Start-Process $exe.FullName -PassThru
           Start-Sleep -Seconds 12
