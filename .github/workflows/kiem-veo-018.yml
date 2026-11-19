@@ -21,7 +21,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:RUNNER_TEMP 'veo-qa-018'
           New-Item -ItemType Directory $root | Out-Null
-          gh release download qa-veo-018-windows --repo CNTTMSXGROUP/veo-ban-cai --dir $root --pattern latest.json --pattern Veo_0.3.18_x64-setup.exe --pattern qa-bootstrap.exe --pattern qa-drive-windows.mjs
+          gh release download qa-veo-018-windows --repo CNTTMSXGROUP/veo-ban-cai --dir $root --pattern latest.json --pattern Veo_0.3.18_x64-setup.exe --pattern qa-bootstrap.exe --pattern qa-drive-windows.mjs --pattern qa-drive-mac.zip
           if ($LASTEXITCODE -ne 0) { throw 'Không tải được ứng viên nháp' }
           Remove-Item Env:GH_TOKEN
           $oldSetup = Join-Path $root 'veo-cu.exe'
@@ -105,7 +105,9 @@ jobs:
             Write-Output 'TEST: Đã hiện màn hình đăng nhập của bản vừa cài.'
             $node = Join-Path $install 'node.exe'
             if (!(Test-Path $node)) { throw 'Không thấy node.exe trong bộ cài' }
-            $proc = Start-Process $node -ArgumentList @(('"{0}"' -f (Join-Path $root 'qa-drive-windows.mjs')),('"{0}"' -f $install)) -RedirectStandardOutput (Join-Path $root 'drive.out') -RedirectStandardError (Join-Path $root 'drive.err') -Wait -PassThru
+            $fromMac = Join-Path $root 'ban-mau-mac'
+            Expand-Archive (Join-Path $root 'qa-drive-mac.zip') $fromMac
+            $proc = Start-Process $node -ArgumentList @(('"{0}"' -f (Join-Path $root 'qa-drive-windows.mjs')),('"{0}"' -f $install), ('"{0}"' -f $fromMac)) -RedirectStandardOutput (Join-Path $root 'drive.out') -RedirectStandardError (Join-Path $root 'drive.err') -Wait -PassThru
             Get-Content (Join-Path $root 'drive.out'), (Join-Path $root 'drive.err')
             if ($proc.ExitCode -ne 0) { throw "Thử Drive thoát với mã $($proc.ExitCode)" }
             if (!$auto) { throw "Cài đã xong nhưng Windows chưa tự mở lại Vèo" }
