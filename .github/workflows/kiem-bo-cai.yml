@@ -1,28 +1,93 @@
-name: Kiểm bộ cài Vèo 0.3.16
+name: Kiểm bộ cài Vèo 0.3.17
 on:
   push:
-    branches: [codex/kiem-veo-0-3-16]
-permissions: {}
+    branches: [codex/kiem-veo-0-3-17]
+permissions:
+  contents: read
 jobs:
   cai-va-mo:
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
       - name: Tải đúng bộ cài
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $setup = Join-Path $env:RUNNER_TEMP 'veo-setup.exe'
-          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.16/Veo_0.3.16_x64-setup.exe' -OutFile $setup
-          if ((Get-FileHash $setup).Hash -ne '0f5aafdb099d904af8ff92c101c54a241a5a7642662c74caccead439e8d58871') { throw 'Sai mã SHA-256' }
+          gh release download v0.3.17 -R CNTTMSXGROUP/veo-ban-cai -p 'Veo_0.3.17_x64-setup.exe' -O $setup
+          if ($LASTEXITCODE -ne 0) { throw 'Chưa tải được bộ cài từ bản nháp' }
+          if ((Get-FileHash $setup).Hash -ne 'c67b4b8e7cf896b7c67d88eaef51cbbd15a0877dd753211facb5d858754e5906') { throw 'Sai mã SHA-256' }
       - name: Cài và mở từ thư mục đã cài
         shell: pwsh
         run: |
           $install = Join-Path $env:RUNNER_TEMP 'Veo'
           $installer = Start-Process (Join-Path $env:RUNNER_TEMP 'veo-setup.exe') -ArgumentList '/S',"/D=$install" -PassThru
           if (!$installer.WaitForExit(180000) -or $installer.ExitCode -ne 0) { throw 'Trình cài không hoàn tất' }
-          $exe = Get-ChildItem $install -File -Filter '*.exe' | Where-Object { $_.VersionInfo.ProductVersion -match '^0\.3\.16(\.0)?$' } | Select-Object -First 1
+          $exe = Get-ChildItem $install -File -Filter '*.exe' | Where-Object { $_.VersionInfo.ProductVersion -match '^0\.3\.17(\.0)?$' } | Select-Object -First 1
           if (!$exe) { throw 'Thiếu ứng dụng đúng phiên bản' }
+          if ($exe.VersionInfo.CompanyName -ne 'MSX Tech') { throw 'Sai tên đơn vị phát triển trong ứng dụng Windows' }
+          Write-Output 'Thông tin ứng dụng Windows ghi đúng MSX Tech.'
+          Add-Type -AssemblyName System.Drawing
+          $bitmap = [Drawing.Icon]::ExtractAssociatedIcon($exe.FullName).ToBitmap()
+          try {
+            $green=0; $yellow=0; $white=0
+            for ($x=0; $x -lt $bitmap.Width; $x++) {
+              for ($y=0; $y -lt $bitmap.Height; $y++) {
+                $pixel=$bitmap.GetPixel($x,$y)
+                if ($pixel.A -lt 220) { continue }
+                if ($pixel.G -gt ($pixel.R + 40) -and $pixel.G -gt ($pixel.B + 20)) { $green++ }
+                if ($pixel.R -gt 220 -and $pixel.G -gt 138 -and $pixel.G -lt 220 -and $pixel.B -lt 95) { $yellow++ }
+                if ($pixel.R -gt 230 -and $pixel.G -gt 230 -and $pixel.B -gt 230) { $white++ }
+              }
+            }
+            $area=$bitmap.Width*$bitmap.Height
+            if ($green -lt 0.30*$area -or $white -lt 0.12*$area -or $yellow -lt 0.018*$area) { throw 'Biểu tượng Windows sai logo Vèo' }
+            Write-Output 'Windows nhận đúng logo Vèo nền xanh, biểu tượng trắng và nét vàng.'
+          } finally { $bitmap.Dispose() }
+          $testPort = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
+          $testPort.Start()
+          $port = $testPort.LocalEndpoint.Port
+          $testPort.Stop()
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$port"
           $app = Start-Process $exe.FullName -PassThru
+          $probeLogin = Join-Path $env:RUNNER_TEMP 'kiem-man-dang-nhap.mjs'
+          @'
+          import assert from 'node:assert/strict';
+          const deadline=Date.now()+60000;
+          const pause=()=>new Promise(resolve=>setTimeout(resolve,700));
+          const expr=`(() => ({
+            heading:document.querySelector('h1')?.textContent?.trim(),
+            username:!!document.querySelector('input[autocomplete="username"]'),
+            password:!!document.querySelector('input[type=password][autocomplete="current-password"]'),
+            logo:!!document.querySelector('.d-brand img')?.naturalWidth
+          }))()`;
+          let ready=false;
+          while(Date.now()<deadline && !ready){
+            try {
+              const pages=await(await fetch('http://127.0.0.1:'+process.argv[2]+'/json/list')).json();
+              const p=pages.find(p=>p.type==='page' && /^https?:\/\/tauri\.localhost(?:\/|$)/.test(p.url));
+              if(p){
+                const ws=new WebSocket(p.webSocketDebuggerUrl);
+                try {
+                  const r=await new Promise((ok,no)=>{
+                    const timer=setTimeout(()=>no(Error('WebView2 timeout')),3500);
+                    ws.onopen=()=>ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',params:{expression:expr,returnByValue:true}}));
+                    ws.onerror=()=>{clearTimeout(timer);no(Error('WebView2'))};
+                    ws.onmessage=e=>{const obj=JSON.parse(e.data);if(obj.id===1){clearTimeout(timer);ok(obj.result?.result?.value)}};
+                  });
+                  ready=r?.heading==='Đăng nhập' && r.username && r.password && r.logo;
+                } finally{ws.close();}
+              }
+            }catch{}
+            if(!ready) await pause();
+          }
+          assert.ok(ready,'Bộ cài chưa hiển thị đủ màn đăng nhập MSX và logo');
+          console.log('Đã mở màn đăng nhập MSX trong ứng dụng Windows, có hai trường và logo mới.');
+          '@ | Set-Content -Encoding utf8 $probeLogin
+          & (Join-Path $install 'node.exe') $probeLogin $port
+          if ($LASTEXITCODE -ne 0) { throw 'Màn đăng nhập Windows chưa đạt' }
+          Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
           Start-Sleep -Seconds 12
           if ($app.HasExited) { throw 'Ứng dụng thoát sau khi mở' }
           $worker = Join-Path $install 'worker/dung-app.mjs'
