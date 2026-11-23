@@ -1,12 +1,12 @@
-name: Kiểm Vèo 0.3.20 trên Windows
+name: Kiểm Vèo 0.3.21 trên Windows
 on:
   push:
-    branches: [kiem-veo-0320]
+    branches: [kiem-veo-0321]
 permissions:
   contents: write
 env:
-  SHA_018: '9870678FE591C4CDADF332E35A4568F0CB6979CB14A98D90E16FBFC688092551'
-  SHA_MOI: '614C403D94BF208185476D098D2F32E21DE9DB7C137A99AAD9A5103B4D21B377'
+  SHA_018: '614C403D94BF208185476D098D2F32E21DE9DB7C137A99AAD9A5103B4D21B377'
+  SHA_MOI: '8C0DF2D8E35B99682B5538317744C76E70771845CE645C95FF44200CD1198155'
 jobs:
   cai-moi:
     runs-on: windows-latest
@@ -19,7 +19,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $setup = Join-Path $env:RUNNER_TEMP 'veo-setup.exe'
-          gh release download v0.3.20 -R CNTTMSXGROUP/veo-ban-cai -p 'Veo_0.3.20_x64-setup.exe' -O $setup
+          gh release download v0.3.21 -R CNTTMSXGROUP/veo-ban-cai -p 'Veo_0.3.21_x64-setup.exe' -O $setup
           if ($LASTEXITCODE -ne 0) { throw 'Chưa tải được bộ cài từ bản nháp' }
           if ((Get-FileHash $setup).Hash -ne $env:SHA_MOI) { throw 'Bộ cài trên bản nháp không phải bản vừa đóng gói' }
           $install = Join-Path $env:RUNNER_TEMP 'Veo'
@@ -27,7 +27,7 @@ jobs:
           if (!$p.WaitForExit(240000) -or $p.ExitCode -ne 0) { throw 'Trình cài không hoàn tất' }
           $exe = Join-Path $install 'msx-phong-dung.exe'
           $info = (Get-Item $exe).VersionInfo
-          if ($info.ProductVersion -notmatch '^0\.3\.20(\.0)?$') { throw "Sai phiên bản $($info.ProductVersion)" }
+          if ($info.ProductVersion -notmatch '^0\.3\.21(\.0)?$') { throw "Sai phiên bản $($info.ProductVersion)" }
           if ($info.CompanyName -ne 'MSX Tech') { throw 'Sai tên đơn vị phát triển' }
           $app = Start-Process $exe -PassThru
           Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
@@ -43,7 +43,7 @@ jobs:
             if (!$found) { Start-Sleep -Milliseconds 300 }
           } while (!$found -and (Get-Date) -lt $until)
           if (!$found) { throw 'Chưa thấy màn đăng nhập' }
-          Write-Output 'TEST: Đã mở Vèo 0.3.20, thấy màn đăng nhập.'
+          Write-Output 'TEST: Đã mở Vèo 0.3.21, thấy màn đăng nhập.'
           Start-Sleep -Seconds 10
           if ($app.HasExited) { throw 'Ứng dụng thoát sau khi mở' }
           & (Join-Path $install 'ffmpeg.exe') -v error -f lavfi -i 'sine=d=0.25:r=48000' -c:a libmp3lame -y (Join-Path $env:RUNNER_TEMP 'thu.mp3')
@@ -67,7 +67,7 @@ jobs:
             if ($r.StatusCode -ne 200) { throw "Phần dựng chưa có lệnh huỷ dựng ($($r.StatusCode))" }
             $r = Invoke-WebRequest "$base/api/thu-tu" -Method Post -Headers $h -ContentType 'application/json' -Body '{"videos":[],"folders":[]}' -SkipHttpErrorCheck
             if ($r.StatusCode -ne 200) { throw "Lưu thứ tự rỗng lỗi $($r.StatusCode)" }
-            Write-Output 'TEST: Phần dựng 0.3.20 chạy, có lệnh huỷ dựng.'
+            Write-Output 'TEST: Phần dựng 0.3.21 chạy, có lệnh huỷ dựng.'
           } finally {
             if (!$child.HasExited) { $child.Kill($true) }
             if (!$app.HasExited) { $app.Kill($true) }
@@ -81,24 +81,24 @@ jobs:
       matrix:
         thu_muc: [mac-dinh, tuy-chon]
     steps:
-      - name: Cài 0.3.19, nâng lên 0.3.20, tự mở lại
+      - name: Cài 0.3.20, nâng lên 0.3.21, tự mở lại
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           $old = Join-Path $env:RUNNER_TEMP 'veo-cu.exe'
-          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.19/Veo_0.3.19_x64-setup.exe' -OutFile $old
-          if ((Get-FileHash $old).Hash -ne $env:SHA_018) { throw 'Sai bộ cài 0.3.19' }
+          Invoke-WebRequest 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.20/Veo_0.3.20_x64-setup.exe' -OutFile $old
+          if ((Get-FileHash $old).Hash -ne $env:SHA_018) { throw 'Sai bộ cài 0.3.20' }
           $custom = '${{ matrix.thu_muc }}' -eq 'tuy-chon'
           $install = if ($custom) { Join-Path $env:RUNNER_TEMP 'Veo-custom' } else { Join-Path $env:LOCALAPPDATA 'Vèo' }
           $a = if ($custom) { @('/S',"/D=$install") } else { @('/S') }
           $p = Start-Process $old -ArgumentList $a -Wait -PassThru
-          if ($p.ExitCode) { throw "Cài 0.3.19 lỗi $($p.ExitCode)" }
+          if ($p.ExitCode) { throw "Cài 0.3.20 lỗi $($p.ExitCode)" }
           $exe = Join-Path $install 'msx-phong-dung.exe'
-          if ((Get-Item $exe).VersionInfo.ProductVersion -notmatch '^0\.3\.19(\.0)?$') { throw 'Chưa cài được 0.3.19' }
+          if ((Get-Item $exe).VersionInfo.ProductVersion -notmatch '^0\.3\.20(\.0)?$') { throw 'Chưa cài được 0.3.20' }
           $moi = Join-Path $env:RUNNER_TEMP 'veo-moi.exe'
-          gh release download v0.3.20 -R CNTTMSXGROUP/veo-ban-cai -p 'Veo_0.3.20_x64-setup.exe' -O $moi
+          gh release download v0.3.21 -R CNTTMSXGROUP/veo-ban-cai -p 'Veo_0.3.21_x64-setup.exe' -O $moi
           if ((Get-FileHash $moi).Hash -ne $env:SHA_MOI) { throw 'Bộ cài trên bản nháp không phải bản vừa đóng gói' }
           # như app tự cập nhật: chạy trình cài ở chế độ cập nhật, mở lại app sau khi xong
           $p = Start-Process $moi -ArgumentList '/P','/UPDATE','/R' -PassThru
@@ -106,7 +106,7 @@ jobs:
           $ver = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion
           $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
           $noiCai = (Get-ItemProperty $key).InstallLocation.Trim('"')
-          if ($ver -notmatch '^0\.3\.20(\.0)?$' -or $noiCai -ne $install) { throw "Sai vị trí hoặc phiên bản: $noiCai $ver" }
+          if ($ver -notmatch '^0\.3\.21(\.0)?$' -or $noiCai -ne $install) { throw "Sai vị trí hoặc phiên bản: $noiCai $ver" }
           Write-Output "TEST: Đã nâng tại chỗ ở $noiCai lên $ver."
           $until = (Get-Date).AddSeconds(30)
           do { $chay = Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Select-Object -First 1; if (!$chay) { Start-Sleep 1 } } while (!$chay -and (Get-Date) -lt $until)
