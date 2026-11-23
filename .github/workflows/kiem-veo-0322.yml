@@ -27,7 +27,7 @@ jobs:
           if (!$p.WaitForExit(240000) -or $p.ExitCode -ne 0) { throw 'Trình cài không hoàn tất' }
           $exe = Join-Path $install 'msx-phong-dung.exe'
           $info = (Get-Item $exe).VersionInfo
-          if ($info.ProductVersion -notmatch '^0\.3\.21(\.0)?$') { throw "Sai phiên bản $($info.ProductVersion)" }
+          if ($info.ProductVersion -notmatch '^0\.3\.22(\.0)?$') { throw "Sai phiên bản $($info.ProductVersion)" }
           if ($info.CompanyName -ne 'MSX Tech') { throw 'Sai tên đơn vị phát triển' }
           $app = Start-Process $exe -PassThru
           Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
@@ -106,7 +106,7 @@ jobs:
           $ver = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion
           $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
           $noiCai = (Get-ItemProperty $key).InstallLocation.Trim('"')
-          if ($ver -notmatch '^0\.3\.21(\.0)?$' -or $noiCai -ne $install) { throw "Sai vị trí hoặc phiên bản: $noiCai $ver" }
+          if ($ver -notmatch '^0\.3\.22(\.0)?$' -or $noiCai -ne $install) { throw "Sai vị trí hoặc phiên bản: $noiCai $ver" }
           Write-Output "TEST: Đã nâng tại chỗ ở $noiCai lên $ver."
           $until = (Get-Date).AddSeconds(30)
           do { $chay = Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Select-Object -First 1; if (!$chay) { Start-Sleep 1 } } while (!$chay -and (Get-Date) -lt $until)
