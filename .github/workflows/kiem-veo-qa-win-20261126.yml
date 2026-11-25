@@ -20,20 +20,20 @@ jobs:
           $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa'
           New-Item -ItemType Directory -Path $Dir | Out-Null
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $AppName = 'Veo-QA-Windows-26_0.3.24_x64-setup.exe'
+          $AppName = 'Veo-QA-Windows-26_0.3.24_x64-setup-r2.exe'
           $Renderer = 'render-hyperframes-win32-x64-2d1477237512.tar.gz'
           $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
           if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp dùng để kiểm.' }
           gh release download $Tag -R $env:GITHUB_REPOSITORY --pattern $AppName --pattern $Renderer --dir $Dir
           if ($LASTEXITCODE -ne 0) { throw 'Không tải được bộ cài hoặc gói đồ họa.' }
-          if ((Get-FileHash (Join-Path $Dir $AppName)).Hash -ne '7bc6cdfc88bd29e1ddf4be5914f4960362af3b5b62cd5519fce6b8ce07f6462d') { throw 'Sai SHA-256 của bộ cài.' }
+          if ((Get-FileHash (Join-Path $Dir $AppName)).Hash -ne '045757800048c822727848895e08feff3d453d68c9bf2f749391c7757ab47c8b') { throw 'Sai SHA-256 của bộ cài.' }
           if ((Get-FileHash (Join-Path $Dir $Renderer)).Hash -ne '2d1477237512e6872bb98096e39563a3ad16a04a8f7bb1d25112c7df1274b208') { throw 'Sai SHA-256 của gói đồ họa.' }
       - name: Cài vào thư mục riêng và kiểm app đã cài
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa'
-          $Setup = Join-Path $Dir 'Veo-QA-Windows-26_0.3.24_x64-setup.exe'
+          $Setup = Join-Path $Dir 'Veo-QA-Windows-26_0.3.24_x64-setup-r2.exe'
           $Install = Join-Path $Dir 'Vèo thử Windows'
           $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }

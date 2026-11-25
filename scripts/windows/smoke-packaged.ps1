@@ -95,7 +95,7 @@ try {
   $Start.UseShellExecute = $false
   $Start.RedirectStandardOutput = $true
   $Start.RedirectStandardInput = $true
-  $Start.Environment['DUNG_DATA'] = Join-Path $Temp 'Kho dự án'
+  $Start.Environment['DUNG_DATA'] = Join-Path $Temp "Kho dự án, [màu]; O'Brien"
   $Start.Environment['DUNG_FFMPEG'] = $Ffmpeg
   $Start.Environment['DUNG_FFPROBE'] = $Ffprobe
   $Start.Environment['DUNG_FONTS'] = Join-Path $Worker 'fonts'
