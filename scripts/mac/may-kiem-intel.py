@@ -73,9 +73,12 @@ class Mirror(BaseHTTPRequestHandler):
 
     def do_POST(self):
         kind = self.path.removeprefix("/qa/")
-        if kind not in ("cold", "warm", "failure"):
+        if kind not in ("cold", "warm", "failure", "step"):
             return self.respond(404, {})
         body = json.loads(self.rfile.read(min(16384, int(self.headers["Content-Length"]))))
+        if kind == "step":
+            print("Bước QA: " + body["name"], flush=True)
+            return self.respond(200, {"ok": True})
         temporary = root / (kind + ".tmp")
         temporary.write_text(json.dumps(body, ensure_ascii=False))
         temporary.replace(root / (kind + ".json"))

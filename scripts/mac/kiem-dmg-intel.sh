@@ -35,7 +35,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-/usr/bin/hdiutil attach "$qa/Veo-QA-Intel_0.3.24-r2.dmg" -readonly -nobrowse -noautoopen -mountpoint "$mount"
+/usr/bin/hdiutil attach "$qa/Veo-QA-Intel_0.3.24-r3.dmg" -readonly -nobrowse -noautoopen -mountpoint "$mount"
 /usr/bin/ditto "$mount/$name.app" "$installed"
 /usr/bin/hdiutil detach "$mount"
 /usr/bin/codesign --verify --deep --strict "$installed"
