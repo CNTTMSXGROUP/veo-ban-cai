@@ -1,0 +1,64 @@
+name: Kiểm tự cập nhật có chữ ký của Vèo trên Windows
+on:
+  push:
+    branches: [kiem-veo-cap-nhat-co-ky-win-20261126]
+permissions:
+  contents: read
+jobs:
+  cap-nhat:
+    runs-on: windows-latest
+    timeout-minutes: 16
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        ca: [bam-cap-nhat, thoat-app]
+    steps:
+      - name: Lấy đúng bộ cài, chữ ký và clip từ bản nháp
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-signed'
+          New-Item -ItemType Directory -Path $Qa | Out-Null
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Expected = @{
+            'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup.exe' = '23daa914dd7d7d67d69f74974c0a65b3b8f5908ef01dde7fc742dccc5cfb818d'
+            'Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe' = '2ba78d235a46ca77afddf7fb2295901bb194e57969f9e4680d834958078ac2d9'
+            'Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe.sig' = '1aaf5d59559d10a117709f748826e6b14a8ab0f970c4cca5c7b8c4495fa214a3'
+            'qa-upgrade-voice.mp4' = '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71'
+          }
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          $Download = @('release','download',$Tag,'-R',$env:GITHUB_REPOSITORY,'--dir',$Qa)
+          foreach ($Name in $Expected.Keys) { $Download += @('--pattern',$Name) }
+          gh @Download
+          if ($LASTEXITCODE -ne 0) { throw 'Không tải được đủ tài liệu kiểm.' }
+          foreach ($Name in $Expected.Keys) {
+            if ((Get-FileHash (Join-Path $Qa $Name)).Hash -ne $Expected[$Name]) { throw "Sai SHA-256 của $Name." }
+          }
+      - name: Tạo kho cũ, kiểm từ chối gói sai rồi tự cập nhật
+        shell: pwsh
+        env:
+          VEO_QA_CASE: ${{ matrix.ca }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-signed'
+          $Model = Join-Path $Qa 'ggml-base.en-q5_1.bin'
+          curl.exe -L --max-time 180 --retry 2 --fail --silent --show-error 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o $Model
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash $Model).Hash -ne '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f') { throw 'Sai SHA-256 hoặc không tải được model tiếng Anh.' }
+          foreach ($Name in 'kiem-kho-nang-cap.mjs','may-cap-nhat-thu.py','kiem-cap-nhat-co-ky.ps1') {
+            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$Name" -OutFile (Join-Path $Qa $Name)
+          }
+          $Os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "$($Os.Caption) $($Os.OSArchitecture) $($Os.Version)"
+          & (Join-Path $Qa 'kiem-cap-nhat-co-ky.ps1') -Qa $Qa -Ca $env:VEO_QA_CASE
+      - name: Xem bằng chứng máy chủ thử
+        if: always()
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-signed'
+          foreach ($Name in 'may-chu.log','may-chu-loi.log') {
+            $Log = Join-Path $Qa $Name
+            if (Test-Path -LiteralPath $Log) { Get-Content -LiteralPath $Log -Tail 25 }
+          }
