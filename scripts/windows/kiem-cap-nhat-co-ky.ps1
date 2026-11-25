@@ -13,7 +13,7 @@ if ((Split-Path -Path $Qa -Parent) -ne $env:RUNNER_TEMP) {
 $Seed = Join-Path $PSScriptRoot 'kiem-kho-nang-cap.mjs'
 $Feed = Join-Path $PSScriptRoot 'may-cap-nhat-thu.py'
 $Old = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup.exe'
-$New = Join-Path $Qa 'Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe'
+$New = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe'
 $Custom = $Ca -eq 'thoat-app'
 $Install = if ($Custom) { Join-Path $Qa 'Bản cài Vèo tự chọn' } else { Join-Path $env:LOCALAPPDATA 'Vèo' }
 $AppFile = Join-Path $Install 'msx-phong-dung.exe'
@@ -143,6 +143,9 @@ try {
   $Ready = Join-Path $Cache 'ban-0.3.24.bin'
   if ((Get-FileHash -LiteralPath $Ready).Hash -ne (Get-FileHash -LiteralPath $New).Hash) { throw 'Tệp cập nhật đã tải không khớp bộ cài ký.' }
   Write-Host 'Vèo đã xác minh và lưu gói 0.3.24 hợp lệ.'
+  $NextCache = Join-Path $Cache 'ban-0.3.25.bin'
+  Set-Content -LiteralPath $NextCache -Value 'Tệp thử để kiểm phạm vi dọn' -Encoding utf8
+  $NextHash = (Get-FileHash -LiteralPath $NextCache).Hash
 
   # Bản thử 0.3.24 mở màn đăng nhập thật. Xóa phiên giả trên máy thử trước khi chạy bản đó.
   Remove-Item -LiteralPath $Session
@@ -168,6 +171,9 @@ try {
     Write-Host 'Bấm Cập nhật đã cài 0.3.24 vào thư mục mặc định và tự mở lại Vèo.'
   }
   $null = Wait-Moc { Find-Ui $NewApp 'Tiếp tục với Google' } 60 'Bản 0.3.24 chưa mở màn đăng nhập.'
+  $null = Wait-Moc { !(Test-Path -LiteralPath $Ready) } 10 'Bản mới chưa dọn bộ cài đã dùng.'
+  if ((Get-FileHash -LiteralPath $NextCache).Hash -ne $NextHash) { throw 'Bản mới đã đổi bộ đệm của phiên bản khác.' }
+  Write-Host "Bản mới dọn bộ cài đã dùng $((Get-Item -LiteralPath $New).Length) byte và giữ bộ đệm của phiên bản khác."
   if (!$NewApp.CloseMainWindow() -or !$NewApp.WaitForExit(25000)) { throw 'Không đóng được bản đã nâng để kiểm kho.' }
   & (Join-Path $Install 'node.exe') $Seed 'sau' $Install $Qa
   if ($LASTEXITCODE -ne 0) { throw 'Kho cũ không qua kiểm tra sau cập nhật.' }

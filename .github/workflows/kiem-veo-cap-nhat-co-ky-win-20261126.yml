@@ -25,8 +25,8 @@ jobs:
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
           $Expected = @{
             'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup.exe' = '23daa914dd7d7d67d69f74974c0a65b3b8f5908ef01dde7fc742dccc5cfb818d'
-            'Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe' = '2ba78d235a46ca77afddf7fb2295901bb194e57969f9e4680d834958078ac2d9'
-            'Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe.sig' = '1aaf5d59559d10a117709f748826e6b14a8ab0f970c4cca5c7b8c4495fa214a3'
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe' = 'cd64b0e7f8f08f776c4709d1f3575dc89cb125b460b3e473539f7af581289a46'
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe.sig' = '5cb0f3070581affdb561981c6879fb332da5d7511c51209b62aaec0a617ad509'
             'qa-upgrade-voice.mp4' = '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71'
           }
           $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft

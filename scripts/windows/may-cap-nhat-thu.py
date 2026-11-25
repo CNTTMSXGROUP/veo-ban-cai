@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 
 root = Path(sys.argv[1])
-installer = root / "Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe"
+installer = root / "Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe"
 signature = installer.with_suffix(".exe.sig").read_text(encoding="ascii").strip()
 origin = "https://127.0.0.1:49324"
 
