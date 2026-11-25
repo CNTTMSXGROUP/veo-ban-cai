@@ -1,0 +1,54 @@
+name: Kiểm bộ cài Vèo và đồ họa trên macOS Intel
+on:
+  push:
+    branches: [kiem-veo-mac-intel-20261126]
+permissions:
+  contents: read
+jobs:
+  cai-dung-xuat:
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Lấy DMG x64 và gói HyperFrames đã ghim
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          qa="$RUNNER_TEMP/veo-intel"
+          mkdir -p "$qa"
+          tag='veo-qa-mac-intel-20261126'
+          test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa" \
+            --pattern 'Veo-QA-Intel_0.3.24.dmg' \
+            --pattern 'render-hyperframes-darwin-x64-b1e7e958e6de.tar.gz'
+          cd "$qa"
+          printf '%s\n' \
+            '6ef651289bb3521ea50ea2fcce32c7acf4d8c837bb2b910b9521b927d4e07dbe  Veo-QA-Intel_0.3.24.dmg' \
+            'b1e7e958e6de9cdecf15cfc4ffdc4b99f625fd8cf11378aec3c741bb56ffe0b5  render-hyperframes-darwin-x64-b1e7e958e6de.tar.gz' |
+            shasum -a 256 -c
+      - name: Cài DMG, tải gói, dựng và mở lại dự án
+        shell: bash
+        run: |
+          qa="$RUNNER_TEMP/veo-intel"
+          for file in kiem-dmg-intel.sh may-kiem-intel.py; do
+            curl -fsS --retry 2 "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac/$file" -o "$qa/$file"
+          done
+          bash "$qa/kiem-dmg-intel.sh" "$qa"
+      - name: Xem log khởi động và nguồn tải
+        if: always()
+        shell: bash
+        run: |
+          for file in "$RUNNER_TEMP"/veo-intel/*.log; do
+            if [ -f "$file" ]; then tail -24 "$file"; fi
+          done
+          worker="$HOME/Library/Logs/vn.msxgroup.phongdung.qa.intel20261126/phan-dung.log"
+          if [ -f "$worker" ]; then tail -18 "$worker"; fi
+      - name: Lưu video và khung hình mẫu
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-mac-intel-ket-qua
+          path: ${{ runner.temp }}/veo-intel/minh-chung
+          if-no-files-found: error
+          retention-days: 30
