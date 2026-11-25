@@ -35,7 +35,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-/usr/bin/hdiutil attach "$qa/Veo-QA-Intel_0.3.24.dmg" -readonly -nobrowse -noautoopen -mountpoint "$mount"
+/usr/bin/hdiutil attach "$qa/Veo-QA-Intel_0.3.24-r2.dmg" -readonly -nobrowse -noautoopen -mountpoint "$mount"
 /usr/bin/ditto "$mount/$name.app" "$installed"
 /usr/bin/hdiutil detach "$mount"
 /usr/bin/codesign --verify --deep --strict "$installed"
@@ -109,6 +109,17 @@ from pathlib import Path
 import sys
 pixels = Path(sys.argv[1]).read_bytes()
 assert min(pixels) == 0 and max(pixels) > 220, "Lớp đồ họa không có cả phần trong suốt và chữ"
+PY
+"$runtime/ffmpeg" -v error -i "$video" -vf "select='eq(n,5)+eq(n,24)',format=gray" -vsync 0 -frames:v 2 -f rawvideo "$qa/hai-khung-xam.bin"
+python3 - "$qa/hai-khung-xam.bin" <<'PY'
+from pathlib import Path
+import sys
+view = Path(sys.argv[1]).read_bytes()
+size = 1280 * 720
+assert len(view) == 2 * size
+moved = sum(abs(a-b) > 20 for a, b in zip(view[:size], view[size:]))
+assert moved > 1000, f"Cảnh đồ họa đầu chưa có chuyển động: {moved} điểm ảnh."
+print(f"Cảnh đầu có {moved} điểm ảnh đổi rõ giữa hai khung chữ động.")
 PY
 cp "$video" "$qa/minh-chung/Goc-doc-sach-mac-intel.mp4"
 "$runtime/ffmpeg" -v error -i "$video" -vf "select='eq(n,19)+eq(n,75)',scale=640:360,tile=2x1" -frames:v 1 "$qa/minh-chung/Hai-khung-kiem.png"

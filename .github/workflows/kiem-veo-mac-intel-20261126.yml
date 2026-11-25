@@ -21,11 +21,11 @@ jobs:
           tag='veo-qa-mac-intel-20261126'
           test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
           gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa" \
-            --pattern 'Veo-QA-Intel_0.3.24.dmg' \
+            --pattern 'Veo-QA-Intel_0.3.24-r2.dmg' \
             --pattern 'render-hyperframes-darwin-x64-b1e7e958e6de.tar.gz'
           cd "$qa"
           printf '%s\n' \
-            '6ef651289bb3521ea50ea2fcce32c7acf4d8c837bb2b910b9521b927d4e07dbe  Veo-QA-Intel_0.3.24.dmg' \
+            '30d2fabb6d1bd742411fbd49717df8a3b5f8b44faa454670a0d13b19c1a1db75  Veo-QA-Intel_0.3.24-r2.dmg' \
             'b1e7e958e6de9cdecf15cfc4ffdc4b99f625fd8cf11378aec3c741bb56ffe0b5  render-hyperframes-darwin-x64-b1e7e958e6de.tar.gz' |
             shasum -a 256 -c
       - name: Cài DMG, tải gói, dựng và mở lại dự án

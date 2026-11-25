@@ -67,7 +67,7 @@ async function run() {
     const status = await api('do-hoa');
     verify(status.engine && status.browser && status.three && status.gsap, 'Bộ dựng, Chrome, Three.js hoặc GSAP chưa sẵn sàng');
     const spec = {
-        version: 1, id: 'chu-dong', title: 'Góc đọc sách', subtitle: 'Một buổi sáng yên tĩnh', accent: '#ffc16e',
+        version: 1, id: 'chu-dong', title: 'Góc đọc sách', subtitle: 'Chữ động trên Mac Intel', accent: '#ffc16e',
         seconds: 2, speed: 1, chuDong: { kieu: 'nay', theo: 'tu', treMs: 50, doNay: 1.8 },
     };
     const t2 = performance.now();
@@ -76,9 +76,14 @@ async function run() {
     verify(preview.key, 'Bộ dựng chưa tạo bản xem chữ động');
     const { id } = await api('tao-video', {
         version: 1, styleId: 'pixel', canvas: 'ngang', title: name,
-        scenes: [{ text: 'Góc đọc sách', seconds: 2, doHoa: spec }, { text: 'Một buổi sáng yên tĩnh', seconds: 2 }],
+        scenes: [
+            { text: '', seconds: 2, hinh: { fit: 'vua', startSec: 0, useAudio: false, asset: { doHoaMoi: spec, name: spec.title } } },
+            { text: 'Một buổi sáng yên tĩnh', seconds: 2 },
+        ],
     });
-    await waitJob(id, 'dung');
+    const built = await waitJob(id, 'dung');
+    const layer = built.plan.storyboard?.scenes[0]?.hinh?.asset?.doHoa;
+    verify(layer?.id === spec.id && layer.subtitle === spec.subtitle, 'Cảnh đầu chưa gắn đúng lớp chữ động');
     await api('projects/' + id + '/export', { video: true, captions: false, check: false, res: 720, shape: 'ngang' });
     const output = await waitJob(id, 'xuat');
     const video = output.project.job.files.find((path) => path.endsWith('.mp4'));
