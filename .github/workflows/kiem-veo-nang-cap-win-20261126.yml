@@ -1,0 +1,101 @@
+name: Kiểm nâng tại chỗ Vèo trên Windows x64
+on:
+  push:
+    branches: [kiem-veo-nang-cap-win-20261126]
+permissions:
+  contents: read
+jobs:
+  nang-cap:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        thu_muc: [mac-dinh, tuy-chon]
+    steps:
+      - name: Lấy bộ cài và clip thử đã ghim
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-upgrade'
+          New-Item -ItemType Directory -Path $Qa | Out-Null
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $NewName = 'Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe'
+          $ClipName = 'qa-upgrade-voice.mp4'
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy kho chứa bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --pattern $NewName --pattern $ClipName --dir $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Không tải được bộ cài thử và clip.' }
+          if ((Get-FileHash (Join-Path $Qa $NewName)).Hash -ne '2ba78d235a46ca77afddf7fb2295901bb194e57969f9e4680d834958078ac2d9') { throw 'Sai SHA-256 bộ cài thử.' }
+          if ((Get-FileHash (Join-Path $Qa $ClipName)).Hash -ne '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71') { throw 'Sai SHA-256 clip thử.' }
+      - name: Cài Vèo 0.3.23 và tạo dự án có sáu phiên bản
+        shell: pwsh
+        env:
+          VEO_QA_LOCATION: ${{ matrix.thu_muc }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-upgrade'
+          $Old = Join-Path $Qa 'veo-0.3.23.exe'
+          $Model = Join-Path $Qa 'ggml-base.en-q5_1.bin'
+          $Test = Join-Path $Qa 'kiem-kho-nang-cap.mjs'
+          $Custom = $env:VEO_QA_LOCATION -eq 'tuy-chon'
+          $Install = if ($Custom) { Join-Path $Qa 'Bản cài Vèo tự chọn' } else { Join-Path $env:LOCALAPPDATA 'Vèo' }
+          $AppFile = Join-Path $Install 'msx-phong-dung.exe'
+          $Db = Join-Path $env:APPDATA 'vn.msxgroup.phongdung/phong-dung.db'
+          if ((Test-Path $AppFile) -or (Test-Path $Db)) { throw 'Máy thử đã có Vèo hoặc dữ liệu.' }
+          curl.exe -L --max-time 210 --retry 2 --fail --silent --show-error 'https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/v0.3.23/Veo_0.3.23_x64-setup.exe' -o $Old
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash $Old).Hash -ne '60740d5c78b63dcf36391683b457ff9be595399aa7ab3c88d2377ef9a952008b') { throw 'Sai SHA-256 hoặc không tải được bộ cài 0.3.23.' }
+          curl.exe -L --max-time 180 --retry 2 --fail --silent --show-error 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o $Model
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash $Model).Hash -ne '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f') { throw 'Sai SHA-256 hoặc không tải được model tiếng Anh.' }
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/kiem-kho-nang-cap.mjs" -OutFile $Test
+          $ArgsCai = if ($Custom) { @('/S',"/D=$Install") } else { @('/S') }
+          $P = Start-Process $Old -ArgumentList $ArgsCai -PassThru
+          if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài 0.3.23 quá thời gian.' }
+          if ($P.ExitCode -ne 0) { throw "Cài 0.3.23 lỗi $($P.ExitCode)." }
+          if ((Get-Item $AppFile).VersionInfo.ProductVersion -notmatch '^0\.3\.23(\.0)?$') { throw 'Sai phiên bản Vèo trước nâng cấp.' }
+          & (Join-Path $Install 'node.exe') $Test 'truoc' $Install $Qa
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $Db)) { throw 'Không tạo được dữ liệu và bản xuất từ Vèo 0.3.23.' }
+      - name: Nâng tại chỗ, mở lại và xuất dự án cũ
+        shell: pwsh
+        env:
+          VEO_QA_LOCATION: ${{ matrix.thu_muc }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-upgrade'
+          $Install = if ($env:VEO_QA_LOCATION -eq 'tuy-chon') { Join-Path $Qa 'Bản cài Vèo tự chọn' } else { Join-Path $env:LOCALAPPDATA 'Vèo' }
+          $AppFile = Join-Path $Install 'msx-phong-dung.exe'
+          $Setup = Join-Path $Qa 'Veo-Windows-Upgrade-QA_0.3.24_x64-setup.exe'
+          $P = Start-Process $Setup -ArgumentList '/P','/UPDATE','/R' -PassThru
+          if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cập nhật quá thời gian.' }
+          if ($P.ExitCode -ne 0) { throw "Cập nhật lỗi $($P.ExitCode)." }
+          $Version = (Get-Item $AppFile).VersionInfo.ProductVersion
+          $Key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vèo'
+          $Location = (Get-ItemPropertyValue -Path $Key -Name InstallLocation).Trim('"')
+          if ($Version -notmatch '^0\.3\.24(\.0)?$' -or $Location -ne $Install) { throw "Sai nơi cài hoặc phiên bản sau cập nhật: $Location $Version" }
+          $Os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "$($Os.Caption) $($Os.OSArchitecture) $($Os.Version). Đã nâng tại chỗ ở $Location lên $Version."
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+          $Condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, 'Tiếp tục với Google')
+          $Until = (Get-Date).AddSeconds(45)
+          $Login = $null
+          try {
+            do {
+              $App = Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Where-Object Path -eq $AppFile | Select-Object -First 1
+              if ($App -and $App.MainWindowHandle -ne 0) {
+                $Window = [System.Windows.Automation.AutomationElement]::FromHandle($App.MainWindowHandle)
+                $Login = $Window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $Condition)
+              }
+              if (!$Login) { Start-Sleep -Milliseconds 300 }
+            } while (!$Login -and (Get-Date) -lt $Until)
+            if (!$Login) { throw 'App chưa tự mở đến màn đăng nhập sau cập nhật.' }
+            Write-Host 'Vèo tự mở lại tới màn đăng nhập.'
+          } finally {
+            if ($App -and !$App.HasExited) {
+              [void]$App.CloseMainWindow()
+              if (!$App.WaitForExit(5000)) { $App.Kill($true); $App.WaitForExit() }
+            }
+          }
+          & (Join-Path $Install 'node.exe') (Join-Path $Qa 'kiem-kho-nang-cap.mjs') 'sau' $Install $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Kho hoặc tệp xuất cũ không qua kiểm tra sau cập nhật.' }
