@@ -110,7 +110,7 @@ import sys
 pixels = Path(sys.argv[1]).read_bytes()
 assert min(pixels) == 0 and max(pixels) > 220, "Lớp đồ họa không có cả phần trong suốt và chữ"
 PY
-"$runtime/ffmpeg" -v error -i "$video" -vf "select='eq(n,5)+eq(n,24)',format=gray" -vsync 0 -frames:v 2 -f rawvideo "$qa/hai-khung-xam.bin"
+"$runtime/ffmpeg" -v error -i "$video" -vf "select='eq(n,5)+eq(n,24)',format=gray" -fps_mode passthrough -frames:v 2 -f rawvideo "$qa/hai-khung-xam.bin"
 python3 - "$qa/hai-khung-xam.bin" <<'PY'
 from pathlib import Path
 import sys
