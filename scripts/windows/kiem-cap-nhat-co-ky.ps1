@@ -172,7 +172,7 @@ try {
   }
   $null = Wait-Moc { Find-Ui $NewApp 'Tiếp tục với Google' } 60 'Bản 0.3.24 chưa mở màn đăng nhập.'
   $Expected = @{
-    'worker/dung-app.mjs' = '9580b15420f5a580f181fc23228d7d35269c7ced1b1a6a3a37583d4fc57eb0d7'
+    'worker/dung-app.mjs' = 'c25da82856c2c8246e414648d58f3ed2260f855d47b08c8f1463fbe9caa862eb'
     'licenses/LIBVPX-LICENSE.txt' = '8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615'
     'licenses/LIBVPX-PATENTS.txt' = 'cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c'
   }
@@ -185,6 +185,10 @@ try {
   if (!$NewApp.CloseMainWindow() -or !$NewApp.WaitForExit(25000)) { throw 'Không đóng được bản đã nâng để kiểm kho.' }
   & (Join-Path $Install 'node.exe') $Seed 'sau' $Install $Qa
   if ($LASTEXITCODE -ne 0) { throw 'Kho cũ không qua kiểm tra sau cập nhật.' }
+  $Migration = Join-Path $Qa 'chuyen-kho'
+  python (Join-Path $Qa 'kiem-chuyen-kho.py') $Migration $Install (Join-Path $Install 'worker/dung-app.mjs') (Join-Path $Install 'worker/fonts')
+  if ($LASTEXITCODE -ne 0) { throw 'Kho thử không khôi phục sau khi dừng giữa giao dịch.' }
+  Copy-Item -LiteralPath (Join-Path $Migration 'ket-qua.json') -Destination (Join-Path $Qa 'minh-chung/chuyen-kho.json')
 } finally {
   if ($Server -and !$Server.HasExited) { $Server.Kill($true); $Server.WaitForExit() }
   if ($Cert.Thumbprint) { Remove-Item -LiteralPath "Cert:\LocalMachine\Root\$($Cert.Thumbprint)" }
