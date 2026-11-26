@@ -144,7 +144,6 @@ try {
     Write-Host 'Đã tải và nạp kho nhạc ở lần mở đầu.'
     $V1440 = Viewport 1440 900
     $V1100 = Viewport 1100 700
-    $null = Ui 'Cách phát · J K L tua · Ctrl+B tách · Ctrl+Z hoàn tác'
     Write-Host 'Đã mở danh sách và đo hai kích thước cửa sổ.'
     Click-Ui (Ui 'Lọc trạng thái video')
     Click-Ui (Ui 'Lỗi')
