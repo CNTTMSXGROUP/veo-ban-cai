@@ -17,11 +17,12 @@ dmg="Veo-QA-mac-${tag_arch}_0.3.24-${VEO_QA_REVISION:?phiên bản thử}.dmg"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"
 runtime="$data/phan-chay-$runtime_arch"
 installed="$scratch/Vèo.app"
-app_pid='' server_pid='' mounted='' hosts_copied='' nguon_mang=''
+app_pid='' server_pid='' mounted='' hosts_copied='' nguon_mang='' sample_pid=''
 ui() { "$scratch/bam-cua-so" "$app_pid" "$@"; }
 capture() { ui capture "$proof/$1.png"; }
 cleanup() {
   status=$?
+  if [[ -n "$sample_pid" ]]; then kill "$sample_pid" 2>/dev/null || true; fi
   if [[ "$status" -ne 0 && -f "$scratch/server.log" ]]; then
     cp "$scratch/server.log" "$proof/may-chu-tai.log"
   fi
@@ -156,6 +157,36 @@ done
 [[ -f "$data/goi-do-hoa/$renderer_sha/render-hyperframes/render.mjs" ]]
 click 'Chữ động'
 if [[ "$arch" == x86_64 ]]; then
+  sample_worker() {
+    while kill -0 "$app_pid" 2>/dev/null; do
+      date -u '+%Y-%m-%dT%H:%M:%SZ'
+      processes="$(ps -axww -o pid=,ppid=,rss=,pcpu=,command=)"
+      worker_pid="$(awk -v app="$app_pid" '$2==app && /dung-app[.]mjs/ { print $1; exit }' <<<"$processes")"
+      if [[ -n "$worker_pid" ]]; then
+        awk -v worker="$worker_pid" '$1==worker || ($2==worker && /render[.]mjs/) {
+          print ($1==worker ? "worker" : "renderer"), $1, "ppid", $2, "rssKiB", $3, "cpu", $4
+        }' <<<"$processes"
+        port="$(lsof -nP -a -p "$worker_pid" -iTCP -sTCP:LISTEN -Fn 2>/dev/null | sed -n 's/^n127[.]0[.]0[.]1:\([0-9][0-9]*\)$/\1/p' | head -1 || true)"
+        if [[ -n "$port" ]]; then
+          curl -sS --max-time 3 -o /dev/null -w 'state=%{http_code}\n' "http://127.0.0.1:$port/api/state" || true
+        fi
+      fi
+      sleep 3
+    done
+  }
+  sample_worker >> "$proof/phan-dung-theo-gio.log" 2>&1 &
+  sample_pid=$!
+  wait_preview() {
+    local end=$((SECONDS + 140))
+    while ((SECONDS < end)); do
+      if ui wait 'Video xem thử đồ họa' 2 2>/dev/null; then return 0; fi
+      if ui wait 'Không nối được với phần dựng của app.' 1 2>/dev/null; then
+        printf 'Mất kết nối sau %s ms\n' "$(( $(now_ms) - $1 ))" | tee -a "$proof/phan-dung-theo-gio.log"
+        return 1
+      fi
+    done
+    return 1
+  }
   renderer_pid() {
     ps -axww -o pid=,ppid=,command= | awk -v app="$app_pid" '
       { parent[$1]=$2; if (index($0, "render.mjs --chay-lien-tiep")) workers[$1]=1 }
@@ -170,7 +201,7 @@ if [[ "$arch" == x86_64 ]]; then
   ui replace-app 'Dòng chữ'
   first_from="$(now_ms)"
   click 'Dựng bản xem'
-  ui wait 'Video xem thử đồ họa' 140
+  wait_preview "$first_from"
   first_ms="$(( $(now_ms) - first_from ))"
   first_pid="$(renderer_pid)"
 fi
@@ -178,7 +209,7 @@ printf '%s' 'Góc đọc sách' | /usr/bin/pbcopy
 ui replace-app 'Dòng chữ'
 next_from="$(now_ms)"
 click 'Dựng bản xem'
-ui wait 'Video xem thử đồ họa' 140
+wait_preview "$next_from"
 if [[ "$arch" == x86_64 ]]; then
   second_ms="$(( $(now_ms) - next_from ))"
   next_pid="$(renderer_pid)"

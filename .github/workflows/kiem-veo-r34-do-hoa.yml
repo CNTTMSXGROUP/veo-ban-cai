@@ -1,7 +1,7 @@
-name: Tải bộ dựng và xuất chữ động trên bộ cài Vèo
+name: Đo phần dựng đồ họa trong Vèo Intel r37
 on:
   push:
-    branches: [kiem-veo-r34-do-hoa]
+    branches: [kiem-veo-r37-intel-lai]
 permissions:
   contents: read
 jobs:
@@ -11,10 +11,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-26
-            chip: arm64
-            revision: r37
-            dmg: 9b97ea3bf88ad39d53747c63adadb98075ad5c1dacb97fce1112dc408ecdee14
           - runner: macos-15-intel
             chip: x64
             revision: r37
@@ -43,53 +39,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-do-hoa-mac-${{ matrix.chip }}
-          path: ${{ runner.temp }}/veo-qa-do-hoa/minh-chung
-          if-no-files-found: warn
-          retention-days: 30
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 12
-    permissions:
-      contents: write
-    steps:
-      - name: Cài NSIS và tải gói đã ghim trong danh sách của bộ cài
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-do-hoa'
-          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r37.exe'
-          if ((gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
-          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
-          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '66d9fd426ecba8f5948efdc301d5ce905212c9094ac163a51773d802b759d345') { throw 'Sai bộ cài thử.' }
-          $Install = Join-Path $Qa 'app'
-          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
-          $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru
-          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
-          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
-          if ((Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash -ne '4504cac491ba31a02bc0ef8b7b3fe58e831a9c17a0102cf98592b5547ef7d0ec') { throw 'Sai mã phần dựng.' }
-          $Manifest = Get-Content (Join-Path $Install 'phan-do-hoa.json') -Raw -Encoding utf8 | ConvertFrom-Json
-          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Manifest.items[0].tep
-          if ($LASTEXITCODE -ne 0) { throw 'Không tải được gói bộ dựng từ bản nháp.' }
-      - name: Thử tải lại, tạo chữ động, xuất và phát lại MP4
-        shell: pwsh
-        run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-do-hoa'
-          $env:DUNG_CHEP_LOI = 'may'
-          $env:NO_PROXY = '127.0.0.1,localhost'
-          $Script = Join-Path $Qa 'kiem-do-hoa-r34.ps1'
-          $Base = "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts"
-          Invoke-WebRequest "$Base/windows/kiem-do-hoa-r34.ps1" -OutFile $Script
-          Invoke-WebRequest "$Base/do-hoa/kiem-video-do-hoa.py" -OutFile (Join-Path $Qa 'kiem-video-do-hoa.py')
-          & pwsh -NoProfile -STA -File $Script -Install (Join-Path $Qa 'app') -Qa $Qa
-          if ($LASTEXITCODE -ne 0) { throw 'Ca thử đồ họa trên Vèo Windows thất bại.' }
-      - name: Lưu bằng chứng từ cửa sổ Windows
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: veo-do-hoa-windows-x64
+          name: veo-do-hoa-mac-intel-lai
           path: ${{ runner.temp }}/veo-qa-do-hoa/minh-chung
           if-no-files-found: warn
           retention-days: 30
