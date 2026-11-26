@@ -1,4 +1,4 @@
-name: Kiểm bản nháp cảnh chèn ngắn trên Vèo Windows
+name: Kiểm bản nháp cảnh chèn ngắn trên Vèo Windows và Mac Intel
 on:
   push:
     branches: [kiem-veo-canh-ngan-a8ce234-windows]
@@ -51,6 +51,59 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: veo-canh-ngan-windows-a8ce234
+          path: ${{ runner.temp }}/veo-qa-canh-ngan/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
+  canh-ngan-intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Cài bản thử Intel và đối chiếu MP4, FCPXML, OTIO
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          test "$(sysctl -in sysctl.proc_translated 2>/dev/null || true)" != 1
+          qa="$RUNNER_TEMP/veo-qa-canh-ngan"
+          mkdir -p "$qa/gan" "$qa/runtime"
+          cd "$qa"
+          tag=veo-qa-mac-intel-20261126
+          dmg=Veo-QA-mac-x64_0.3.24-r18.dmg
+          ffmpeg=ffmpeg-darwin-x64-8a804cebf686.tar.gz
+          node=node-darwin-x64-4e7afae035ab.tar.gz
+          test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern "$dmg" --pattern "$ffmpeg"
+          curl -fLsS --retry 2 "https://github.com/$GITHUB_REPOSITORY/releases/download/phan-chay/$node" -o "$node"
+          printf '%s\n' \
+            "0eb1493281e916eae1177f3db9118af8662bbbdf655283b17e2ec677838f2bf7  $dmg" \
+            "8a804cebf686b809a5ea0d6f5f02aa34b7ca5b6dcef2b890b26bbd0d8ef1d63f  $ffmpeg" \
+            "4e7afae035ab35edbea161ec518a1a13a4c7658573a29406dc5741934e8ad53e  $node" | shasum -a 256 -c
+          hdiutil attach "$dmg" -mountpoint "$qa/gan" -readonly -nobrowse -noautoopen
+          trap 'hdiutil detach "$qa/gan"' EXIT
+          app="$qa/gan/Veo QA Intel 26.app"
+          codesign --verify --deep --strict "$app"
+          lipo "$app/Contents/MacOS/msx-phong-dung" -verify_arch x86_64
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist" | grep -x '0.3.24'
+          resources="$app/Contents/Resources"
+          export VEO_QA_SOURCE=a8ce2349f19b342fec6f018325bec950b5353f48
+          export VEO_QA_WORKER_SHA="$(shasum -a 256 "$resources/worker/dung-app.mjs" | awk '{print $1}')"
+          test "$VEO_QA_WORKER_SHA" = d100e23edda07c5a7d42c0c2025cf621eea977fc184076388fa402976d7aec29
+          export VEO_QA_OS="macOS $(sw_vers -productVersion) · $(sysctl -n machdep.cpu.brand_string)"
+          tar -xzf "$node" -C "$qa/runtime"
+          tar -xzf "$ffmpeg" -C "$qa/runtime"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts"
+          curl -fsS --retry 2 "$base/windows/kiem-canh-ngan.py" -o kiem-canh-ngan.py
+          curl -fsS --retry 2 "$base/mac/chay-kiem-canh-ngan.py" -o chay-kiem-canh-ngan.py
+          python3 chay-kiem-canh-ngan.py "$resources" "$qa/runtime" "$qa"
+      - name: Lưu video, bản nháp và kết quả Intel
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-canh-ngan-intel-a8ce234
           path: ${{ runner.temp }}/veo-qa-canh-ngan/minh-chung
           if-no-files-found: warn
           retention-days: 30
