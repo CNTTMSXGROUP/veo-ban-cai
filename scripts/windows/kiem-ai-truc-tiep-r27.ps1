@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Install, [Parameter(Mandatory)][string]$Qa)
+param([Parameter(Mandatory)][string]$Install, [Parameter(Mandatory)][string]$Qa, [switch]$ChiNapHam)
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or !$Qa.StartsWith($env:RUNNER_TEMP, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Chỉ thao tác cửa sổ trên máy Windows thử.'
@@ -204,6 +204,8 @@ function Kiem-Mau($Output, [string]$At, [int]$Channel) {
         throw "Sai màu tệp $($Output.name) tại giây $At. RGB $Rgb."
     }
 }
+
+if ($ChiNapHam) { return }
 
 $Firewall = "Veo-QA-WebView2-$env:GITHUB_RUN_ID"
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $Qa 'webview2'
