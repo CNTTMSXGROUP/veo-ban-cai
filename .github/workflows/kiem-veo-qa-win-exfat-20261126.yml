@@ -1,4 +1,4 @@
-name: Kiểm Vèo trên ổ exFAT ở Windows
+name: Đóng gói bản sao Drive của Vèo trên Windows
 on:
   push:
     branches: [kiem-veo-qa-win-exfat-20261126]
@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Tải và kiểm mã băm của bốn tệp trong bản nháp
+      - name: Tải và kiểm mã băm bộ cài Windows trong bản nháp
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -23,20 +23,17 @@ jobs:
           $Draft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
           if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Thiếu bản nháp kiểm thử.' }
           $Files = @{
-            'veo-qa-aac-xung.tar.gz' = '4bf01db099d08ba8060291ffb78844a204e70acadb1ade624ab41f7c0d7c3acc'
             'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r10.exe' = 'def95175d67c5a8bcc4cd3eb65a5478f74b991a06d4923a374f589268f11579c'
-            'veo-qa-windows-exfat-smoke-r10.ps1' = '5f05d52936470d182061773e4efba4a104f90dc4c29a0a62e1cb96465da47d0a'
-            'render-hyperframes-win32-x64-2d1477237512.tar.gz' = '2d1477237512e6872bb98096e39563a3ad16a04a8f7bb1d25112c7df1274b208'
           }
           $Download = @('release','download',$Tag,'-R',$env:GITHUB_REPOSITORY,'--dir',$Dir)
-          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/kiem-ban-giao.mjs" -OutFile (Join-Path $Dir 'kiem-ban-giao.mjs')
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/kiem-chuyen-ban-sao-windows.ps1" -OutFile (Join-Path $Dir 'kiem-chuyen-ban-sao-windows.ps1')
           foreach ($Name in $Files.Keys) { $Download += @('--pattern',$Name) }
           gh @Download
           if ($LASTEXITCODE -ne 0) { throw 'Tải tệp kiểm thử không thành công.' }
           foreach ($Name in $Files.Keys) {
             if ((Get-FileHash -LiteralPath (Join-Path $Dir $Name) -Algorithm SHA256).Hash -ne $Files[$Name]) { throw "Sai SHA-256: $Name" }
           }
-      - name: Cài app, gắn ổ ảo exFAT rồi thử tách và xuất clip
+      - name: Cài app, tách clip qua hai nguồn và đóng bản sao Drive trên exFAT
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -47,12 +44,6 @@ jobs:
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
           if ($Installer.ExitCode -ne 0) { throw "Cài NSIS lỗi $($Installer.ExitCode)." }
 
-          $Renderer = Join-Path $Dir 'render-hyperframes-win32-x64-2d1477237512.tar.gz'
-          tar.exe -xzf $Renderer -C $Dir
-          if ($LASTEXITCODE -ne 0) { throw 'Không mở được gói đồ họa.' }
-          $env:DUNG_HYPERFRAMES_DIR = Join-Path $Dir 'render-hyperframes'
-          tar.exe -xzf (Join-Path $Dir 'veo-qa-aac-xung.tar.gz') -C $Dir
-          if ($LASTEXITCODE -ne 0) { throw 'Không mở được mẫu kiểm AAC.' }
           $Vhd = Join-Path $Dir 'veo-qa-fixture.vhd'
           $PartScript = Join-Path $Dir 'tao-vhd.txt'
           if (Test-Path -LiteralPath $Vhd) { throw 'Đường dẫn ảnh đĩa kiểm thử đã tồn tại.' }
@@ -71,15 +62,12 @@ jobs:
             if (!$Volume.DriveLetter -or $Volume.FileSystem -ne 'exFAT') { throw 'Ảnh đĩa thử chưa có ổ exFAT.' }
             $Os = Get-CimInstance Win32_OperatingSystem
             Write-Host "$($Os.Caption) $($Os.OSArchitecture) $($Os.Version) · $($Volume.FileSystem) $($Volume.Size) byte"
-            & (Join-Path $Dir 'veo-qa-windows-exfat-smoke-r10.ps1') -InstallDir $Install -Version '0.3.24' -OpenApp -ExFatRoot "$($Volume.DriveLetter):\" -DeliveryFixture (Join-Path $Dir 'kiem-ban-giao.mjs') -EvidenceDir (Join-Path $Dir 'ban-giao')
-            & (Join-Path $Install 'node.exe') (Join-Path $Dir 'kiem-aac.mjs') (Join-Path $Install 'ffmpeg.exe') (Join-Path $Dir 'xung.wav') ("$($Volume.DriveLetter):" + [IO.Path]::DirectorySeparatorChar)
-            if ($LASTEXITCODE -ne 0) { throw 'Kiểm tra hạ đỉnh AAC trên Windows không đạt.' }
+            & (Join-Path $Dir 'kiem-chuyen-ban-sao-windows.ps1') -InstallDir $Install -Version '0.3.24' -ExFatRoot "$($Volume.DriveLetter):\" -EvidenceDir (Join-Path $Dir 'ban-sao-drive')
           } finally { Dismount-DiskImage -ImagePath $Vhd | Out-Null }
-      - name: Lưu tệp WAV, OTIO và FCPXML tổng hợp
-        if: always()
+      - name: Lưu bản sao Drive và MP4 nguồn tổng hợp
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-windows-ban-giao-r10
-          path: ${{ runner.temp }}/veo-qa-exfat/ban-giao
+          name: veo-windows-goi-drive-r10
+          path: ${{ runner.temp }}/veo-qa-exfat/ban-sao-drive
           if-no-files-found: error
           retention-days: 30
