@@ -1,4 +1,4 @@
-name: Kiểm tạo và xuất video trên Vèo macOS r23
+name: Kiểm lại cửa sổ dựng storyboard trên Vèo Mac Intel
 on:
   push:
     branches: [kiem-veo-mac-cua-so-r23]
@@ -11,9 +11,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-15
-            chip: arm64
-            dmg_sha: d67164dc0be361ef92c85c5b0715c192e0f93e3c97a69d6a51d61df75e590c90
           - runner: macos-15-intel
             chip: x64
             dmg_sha: 77b7b75fe0520d11060916e382c0b8f4ec206558417df36f55eb445c57b2c781

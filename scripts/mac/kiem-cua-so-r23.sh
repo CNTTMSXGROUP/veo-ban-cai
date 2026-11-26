@@ -25,7 +25,11 @@ cleanup() {
   if [[ "$status" -ne 0 && -n "$app_pid" ]]; then
     ui dump 'lỗi' > "$proof/dieu-khien-khi-loi.txt" 2>/dev/null || true
     capture 'loi' || true
-    if [[ -f "$data/phan-dung.log" ]]; then cp "$data/phan-dung.log" "$proof/phan-dung.log"; fi
+    worker_log="$HOME/Library/Logs/vn.msxgroup.phongdung/phan-dung.log"
+    if [[ -f "$worker_log" ]]; then cp "$worker_log" "$proof/phan-dung.log"; fi
+    find "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports -maxdepth 1 -name '*WebKit*ips' -type f -mmin -10 -exec cp {} "$proof/" \; 2>/dev/null || true
+    /usr/bin/log show --last 4m --style compact --predicate '(process CONTAINS "WebKit" OR process == "msx-phong-dung") AND (eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "terminate")' |
+      tail -90 > "$proof/webkit.log" || true
   fi
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
   if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; fi
@@ -94,7 +98,8 @@ printf '[]\n' > "$scratch/nhac/kho-nhac.json"
 (umask 077; printf '%s\n' '{"refresh":"veo-qa-khong-phai-token","id":"00000000-0000-4000-8000-000000000026","email":"veo-qa@example.invalid","ten":"Kho thử Mac"}' > "$data/dang-nhap.json")
 swiftc "$qa/bam-cua-so.swift" -o "$scratch/bam-cua-so"
 start_app() {
-  VEO_PHAN_CHAY_GOC='http://127.0.0.1:54325' DUNG_KHO_NHAC="$scratch/nhac" DUNG_CHEP_LOI=may \
+  # Cảnh thử không có lời. Tách tải mô hình ra khỏi ca tái hiện cửa sổ trắng.
+  VEO_PHAN_CHAY_GOC='http://127.0.0.1:54325' DUNG_KHO_NHAC="$scratch/nhac" DUNG_CHEP_LOI=may DUNG_WHISPER_MODEL="$scratch/khong-dung-chep-loi.bin" \
     HTTPS_PROXY='http://127.0.0.1:54326' NO_PROXY='127.0.0.1,localhost' PATH=/usr/bin:/bin:/usr/sbin:/sbin "$bin" > "$scratch/app-$1.log" 2>&1 &
   app_pid=$!
   sleep 2
@@ -136,7 +141,10 @@ click 'Open'
 ui wait 'Canh A.mp4' 20
 capture '02-storyboard'
 click 'Dựng video'
-ui wait 'Xuất video' 120
+if ! ui wait 'Xuất video' 55; then
+  capture '03-khi-dung'
+  ui wait 'Xuất video' 70
+fi
 click 'Xuất video'
 click '720p'
 click 'Xuất 1 tệp'
