@@ -172,7 +172,7 @@ try {
   }
   $null = Wait-Moc { Find-Ui $NewApp 'Tiếp tục với Google' } 60 'Bản 0.3.24 chưa mở màn đăng nhập.'
   $Expected = @{
-    'worker/dung-app.mjs' = 'cf6d5faf0ab00e1ef3d07f351756d2859f1f697a804979495b6ae40dcfb98477'
+    'worker/dung-app.mjs' = '9580b15420f5a580f181fc23228d7d35269c7ced1b1a6a3a37583d4fc57eb0d7'
     'licenses/LIBVPX-LICENSE.txt' = '8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615'
     'licenses/LIBVPX-PATENTS.txt' = 'cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c'
   }
