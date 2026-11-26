@@ -1,0 +1,56 @@
+name: Kiểm bản nháp cảnh chèn ngắn trên Vèo Windows
+on:
+  push:
+    branches: [kiem-veo-canh-ngan-a8ce234-windows]
+permissions:
+  contents: read
+jobs:
+  giong-windows:
+    runs-on: windows-latest
+    timeout-minutes: 16
+    permissions:
+      contents: write
+    steps:
+      - name: Lấy đúng bộ cài thử từ bản nháp
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-canh-ngan'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r19.exe'
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '2a29bd0c9ed8acb6e80b2e5ae0aca79542d18ca0e3ce9928e14226e0642c1b7f') {
+            throw 'Không lấy được đúng bộ cài thử.'
+          }
+      - name: Cài và đối chiếu từng khung trên MP4, FCPXML và OTIO
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-canh-ngan'
+          $Install = Join-Path $Qa 'app'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
+          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r19.exe'
+          $Process = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
+          if ($env:VEO_QA_WORKER_SHA -ne 'd100e23edda07c5a7d42c0c2025cf621eea977fc184076388fa402976d7aec29') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = 'a8ce2349f19b342fec6f018325bec950b5353f48'
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $env:VEO_QA_PYTHON = (Get-Command python.exe -ErrorAction Stop).Source
+          $env:PYTHONUTF8 = '1'
+          foreach ($File in @('chay-kiem-canh-ngan.mjs','kiem-canh-ngan.py')) {
+            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile (Join-Path $Qa $File)
+          }
+          & (Join-Path $Install 'node.exe') (Join-Path $Qa 'chay-kiem-canh-ngan.mjs') $Install $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Ca cảnh chèn ngắn thất bại.' }
+      - name: Lưu video, bản nháp và kết quả kiểm
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-canh-ngan-windows-a8ce234
+          path: ${{ runner.temp }}/veo-qa-canh-ngan/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
