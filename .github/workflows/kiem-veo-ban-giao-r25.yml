@@ -1,0 +1,58 @@
+name: Kiểm bàn giao trên Vèo Windows r25
+on:
+  push:
+    branches: [kiem-veo-ban-giao-r25]
+permissions:
+  contents: read
+jobs:
+  mau-windows:
+    runs-on: windows-latest
+    timeout-minutes: 16
+    permissions:
+      contents: write
+    steps:
+      - name: Lấy đúng bộ cài thử từ bản nháp
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ban-giao-r25'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r25.exe'
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne 'e58b0b72d8b5550e0446ec0488bbbf644766ee04bd701dd412b1a7d5843001cd') {
+            throw 'Không lấy được đúng bộ cài thử.'
+          }
+      - name: Dựng, xuất và mở lại MP4, FCPXML, OTIO
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ban-giao-r25'
+          $Install = Join-Path $Qa 'app'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
+          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r25.exe'
+          $Process = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
+          if ($env:VEO_QA_WORKER_SHA -ne '646effff3e93df723fc6baf0d68c56fa6fa79168f56f331dff18999ef2779511') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = '6e8f8b027cef3cf312dea471b88131595d0c2326'
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
+          if (Test-Path $Data) { throw 'Cần máy thử có kho trống.' }
+          $env:DUNG_CHEP_LOI = 'may'
+          $env:NO_PROXY = '127.0.0.1,localhost'
+          $File = 'kiem-ban-giao-r23.ps1'
+          $Script = Join-Path $Qa $File
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile $Script
+          & pwsh -NoProfile -STA -File $Script -Install $Install -Qa $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Ca kiểm tệp bàn giao thất bại.' }
+      - name: Lưu video và kết quả kiểm
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-ban-giao-r25-windows
+          path: ${{ runner.temp }}/veo-qa-ban-giao-r25/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
