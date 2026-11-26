@@ -336,6 +336,9 @@ try {
     $Report | ConvertTo-Json -Depth 7 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'ket-qua.json')
     Write-Host ($Report | ConvertTo-Json -Depth 7 -Compress)
 } catch {
+    if (Test-Path -LiteralPath $CliLog) {
+        Copy-Item -LiteralPath $CliLog -Destination (Join-Path $Proof 'luot-cli-truoc-loi.jsonl')
+    }
     if ($App -and !$App.HasExited) {
         $null = Anh 'loi'
         try {
