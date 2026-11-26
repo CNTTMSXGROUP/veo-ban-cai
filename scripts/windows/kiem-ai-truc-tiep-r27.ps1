@@ -174,16 +174,21 @@ function Xuat([string]$Name, [int]$Frames) {
     Keys '{TAB}'
     (Ui 'Xuất 1 tệp').SetFocus()
     Keys '{ENTER}'
-    $null = Wait-Moc { Find-Ui 'Thành phẩm' } 120 'Video chưa xuất xong.'
-    $Output = @(Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Recurse -File -Filter "$Name.mp4")
-    if ($Output.Count -ne 1 -or !$Output[0].Length) { throw "Thiếu MP4 $Name hoặc bị trùng." }
-    $ProbeInfo = (& $Probe -v error -show_entries 'stream=codec_name,width,height,nb_frames,avg_frame_rate' -of json $Output[0].FullName | ConvertFrom-Json).streams
+    $Output = Wait-Moc {
+        $Matched = @(Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Recurse -File -Filter "$Name.mp4")
+        if ($Matched.Count -eq 1 -and $Matched[0].Length) { $Matched[0] }
+    } 75 "Thiếu MP4 $Name hoặc bị trùng."
+    try {
+        $null = Wait-Moc { Find-Ui 'Thành phẩm' } 18 "Đã có $Name.mp4 nhưng Vèo chưa dùng làm thành phẩm."
+    } finally {
+        Copy-Item -LiteralPath $Output.FullName -Destination (Join-Path $Proof "$Name.mp4")
+    }
+    $ProbeInfo = (& $Probe -v error -show_entries 'stream=codec_name,width,height,nb_frames,avg_frame_rate' -of json $Output.FullName | ConvertFrom-Json).streams
     $V = $ProbeInfo | Where-Object codec_name -eq h264
     if ($LASTEXITCODE -ne 0 -or $V.width -ne 1280 -or $V.height -ne 720 -or $V.nb_frames -ne "$Frames" -or $V.avg_frame_rate -ne '30/1' -or 'aac' -notin $ProbeInfo.codec_name) {
         throw "Sai thông số MP4 $Name. $($ProbeInfo | ConvertTo-Json -Compress)"
     }
-    Copy-Item -LiteralPath $Output[0].FullName -Destination (Join-Path $Proof "$Name.mp4")
-    return [ordered]@{ name=$Name; frames=$Frames; path=$Output[0].FullName; sha256=(Get-FileHash -LiteralPath $Output[0].FullName).Hash.ToLowerInvariant() }
+    return [ordered]@{ name=$Name; frames=$Frames; path=$Output.FullName; sha256=(Get-FileHash -LiteralPath $Output.FullName).Hash.ToLowerInvariant() }
 }
 function Kiem-Mau($Output, [string]$At, [int]$Channel) {
     $Frame = Join-Path $Proof "$($Output.name)-$At.png"
@@ -299,12 +304,14 @@ try {
     Mouse-Ui (Ui 'Tự động')
     $Undo = Xuat 'QA Hoan Tac' 120
     Kiem-Mau $Undo '2.5' 2
+    $null = Anh '06a-thanh-pham-hoan-tac'
     Click-Ui (Ui 'Sửa tay')
     Click-Ui (Ui 'Làm lại (Ctrl+Y)')
     $null = Wait-Moc { Find-Ui 'Hoàn tác (Ctrl+Z)' -Focusable } 15 'Vèo chưa làm lại lượt sửa AI.'
     Mouse-Ui (Ui 'Tự động')
     $Redo = Xuat 'QA Lam Lai' 60
     Kiem-Mau $Redo '1.5' 1
+    $null = Anh '06b-thanh-pham-lam-lai'
 
     Keys '%{F4}'
     if (!$App.WaitForExit(15000)) { throw 'Vèo chưa đóng.' }

@@ -1,4 +1,4 @@
-name: Kiểm chỉnh video qua hai CLI trực tiếp trên Vèo Windows r28
+name: Kiểm chỉnh video qua hai CLI trực tiếp trên Vèo Windows r29
 on:
   push:
     branches: [kiem-veo-r27-ai-truc-tiep-windows]
@@ -11,17 +11,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Cài đúng Vèo Windows r28
+      - name: Cài đúng Vèo Windows r29
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ai-r28'
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ai-r29'
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r28.exe'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r29.exe'
           if ((gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
           gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
-          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '21beecfc4f8fab96737b9cadad4c732da8c4099491d216409b5e4a738a25f4c3') { throw 'Sai bộ cài thử.' }
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne 'f591669e25cf89ea054e8cb7b425f9adce2885e55eadb1e7e4247d8f039d176f') { throw 'Sai bộ cài thử.' }
           $Install = Join-Path $Qa 'app'
           if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
           $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru
@@ -30,11 +30,11 @@ jobs:
       - name: Chọn nguồn, nhắn cắt và đối chiếu MP4 trên bộ cài
         shell: pwsh
         run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ai-r28'
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ai-r29'
           $Install = Join-Path $Qa 'app'
           $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
-          if ($env:VEO_QA_WORKER_SHA -ne '6759192f1b32e0329fe95bfe29f4b2d06d8c6dd516a73a66ccaafea518d57258') { throw 'Sai mã phần dựng.' }
-          $env:VEO_QA_SOURCE = 'acfa5055b2ae3877fa69bc6c24fc49af893a74dd'
+          if ($env:VEO_QA_WORKER_SHA -ne 'be1338d83671e8897aa8cbd874af41d4ec3aea0439bd8b6dbd810211caf50bd7') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = '013c36060f075935506b0862114667f3b797008e'
           $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
           $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
           if (Test-Path $Data) { throw 'Cần máy thử có kho trống.' }
@@ -49,7 +49,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-r28-ai-truc-tiep-windows
-          path: ${{ runner.temp }}/veo-qa-ai-r28/minh-chung
+          name: veo-r29-ai-truc-tiep-windows
+          path: ${{ runner.temp }}/veo-qa-ai-r29/minh-chung
           if-no-files-found: warn
           retention-days: 30
