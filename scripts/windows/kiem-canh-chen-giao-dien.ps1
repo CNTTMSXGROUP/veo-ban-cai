@@ -19,6 +19,7 @@ public static class VeoQaWindow {
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int x, int y, uint data, UIntPtr extra);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
 }
 '@
 
@@ -98,6 +99,13 @@ function Dien([string]$Name, [string]$Value) {
     Keys '{TAB}'
 }
 
+function Ctrl-Key([byte]$Key, [byte]$Scan) {
+    [VeoQaWindow]::keybd_event(0xA2,0x1D,0,[UIntPtr]::Zero)
+    try {
+        [VeoQaWindow]::keybd_event($Key,$Scan,0,[UIntPtr]::Zero)
+        [VeoQaWindow]::keybd_event($Key,$Scan,2,[UIntPtr]::Zero)
+    } finally { [VeoQaWindow]::keybd_event(0xA2,0x1D,2,[UIntPtr]::Zero) }
+}
 function Drag-Pixels([int]$X, [int]$Y, [int]$Dx, [int]$Dy) {
     $App.Refresh()
     $Window = [VeoQaWindow+Rect]::new()
@@ -184,8 +192,7 @@ try {
     if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm cửa sổ thử.' }
     if ($Skip = Find-Ui 'Dùng ngay') { Click-Ui $Skip }
     Write-Host 'Đã vào Danh sách làm việc trong kho thử.'
-    $null = Ui 'Vèo 0.3.23'
-    Write-Host 'Bản r20 hiển thị 0.3.23 ở thanh dưới; tiếp tục để kiểm thao tác trong bản này.'
+    $null = Ui 'Vèo 0.3.24'
 
 
     Click-Ui (Ui 'Kho phong cách')
@@ -245,6 +252,9 @@ try {
     }
 
     $Full = Scan-Capture '06-canh-day-khung-co-tay-nam' 'shape'
+    Drag-Pixels ($Full.right-9) ($Full.bottom-9) 21 23
+    $null = Ui 'Khung đã chạm mép video hoặc kích thước nhỏ nhất.'
+    $null = Wait-Moc { Anh '06b-bao-ly-do-cham-mep' } 10 'Không chụp được thông báo khi chạm mép.'
     Drag-Pixels ($Full.right-9) ($Full.bottom-9) -68 -74
     $Reduced = Scan-Capture '07-thu-khung-ngay-tren-khung-xem' 'shape'
     if ($Reduced.width -gt $Full.width - 45 -or $Reduced.height -gt $Full.height - 45 -or [Math]::Abs($Reduced.left-$Full.left) -gt 4 -or [Math]::Abs($Reduced.top-$Full.top) -gt 4) {
@@ -284,14 +294,27 @@ try {
         $Old = $Smaller
         Write-Host "Đã phóng và thu tay nắm $($Dir.name)."
     }
-    Keys '^z'
-    Start-Sleep -Milliseconds 900
+    Ctrl-Key 0x5A 0x2C
+    Start-Sleep -Milliseconds 1100
     $Undone = Scan-Capture '11-hoan-tac' 'shape'
-    if (!(Same-Box $Undone ($Actions[-1].bigger))) { throw 'Ctrl+Z chưa trả hình về thao tác trước.' }
-    Keys '^y'
-    Start-Sleep -Milliseconds 900
+    $UndoByKey = Same-Box $Undone ($Actions[-1].bigger)
+    if (!$UndoByKey) {
+        Mouse-Ui (Ui 'Hoàn tác (Ctrl+Z)')
+        Start-Sleep -Milliseconds 1100
+        $Undone = Scan-Capture '11b-hoan-tac-bang-nut' 'shape'
+    }
+    if (!(Same-Box $Undone ($Actions[-1].bigger))) { throw 'Chưa hoàn tác được thao tác kéo.' }
+    Ctrl-Key 0x59 0x15
+    Start-Sleep -Milliseconds 1100
     $Redone = Scan-Capture '12-lam-lai' 'shape'
-    if (!(Same-Box $Redone ($Actions[-1].smaller))) { throw 'Ctrl+Y chưa làm lại đúng thao tác.' }
+    $RedoByKey = Same-Box $Redone ($Actions[-1].smaller)
+    if (!$RedoByKey) {
+        Mouse-Ui (Ui 'Làm lại (Ctrl+Y)')
+        Start-Sleep -Milliseconds 1100
+        $Redone = Scan-Capture '12b-lam-lai-bang-nut' 'shape'
+    }
+    if (!(Same-Box $Redone ($Actions[-1].smaller))) { throw 'Chưa làm lại được thao tác kéo.' }
+    Write-Host "Đã hoàn tác và làm lại. Bằng tổ hợp phím: $UndoByKey / $RedoByKey."
 
     if (!$App.CloseMainWindow() -or !$App.WaitForExit(15000)) { throw 'Chưa đóng được app để kiểm mở lại.' }
     $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
@@ -339,7 +362,7 @@ try {
     Mouse-Ui (Ui 'Dừng')
     @{
         source=$env:VEO_QA_SOURCE; worker=$env:VEO_QA_WORKER_SHA; timeline=@($Start,$Grow,$Shrink,$LeftIn,$LeftOut);
-        resizedFromFull=$Reduced; handles=$Actions; undo=$Undone; redo=$Redone; reopen=$Saved;
+        resizedFromFull=$Reduced; handles=$Actions; undo=$Undone; redo=$Redone; undoByKey=$UndoByKey; redoByKey=$RedoByKey; reopen=$Saved;
         video=$Video; previewIn720=$Expected; exported=$Output; playedExportInApp=$true
     } | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'ket-qua-canh-chen.json')
     Write-Host 'Đã mở lại dự án, mở và phát MP4 trong Vèo, khớp vị trí khung xem.'
