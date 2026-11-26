@@ -24,7 +24,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Thiếu bản nháp kiểm thử.' }
           $Files = @{
             'veo-qa-aac-xung.tar.gz' = '4bf01db099d08ba8060291ffb78844a204e70acadb1ade624ab41f7c0d7c3acc'
-            'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r3.exe' = '8c4812e12c1c899937ac0860209c185c31daf05dbb8815f8fa4b97924645102e'
+            'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r4.exe' = '0cb088e959f672aa37b2060ed7319207705098403d7efe3b4a8770a44a22e0d5'
             'veo-qa-windows-exfat-smoke-r4.ps1' = '53877f83be1a049aee0338789959c5cf3d74403cdefb2e5651b79940522fe048'
             'render-hyperframes-win32-x64-2d1477237512.tar.gz' = '2d1477237512e6872bb98096e39563a3ad16a04a8f7bb1d25112c7df1274b208'
           }
@@ -40,7 +40,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa-exfat'
-          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r3.exe'
+          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r4.exe'
           $Install = Join-Path $Dir 'Vèo thử, [Windows]'
           $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
