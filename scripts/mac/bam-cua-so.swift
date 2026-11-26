@@ -77,6 +77,7 @@ let value = args[2]
 let root = AXUIElementCreateApplication(pid)
 
 if command == "dump" {
+    print("Màn hình thử \(CGDisplayBounds(CGMainDisplayID()))")
     var queue = children(root)
     var i = 0
     while i < queue.count && i < 1500 {
