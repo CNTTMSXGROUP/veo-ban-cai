@@ -114,36 +114,42 @@ at_frame() {
   sleep .7
 }
 
-start_app --factory-startup --app-template Video_Editing
-sleep 2
-capture 00-khoi-tao
-xdotool mousemove 680 666 click 1
-sleep 2
-xdotool mousemove 996 630 click 1
-key Escape
-capture 01-khong-gian-dung
-xdotool mousemove 480 670
-key F3
-sleep .5
-type_text 'Import OpenTimelineIO'
-sleep .6
-capture 02-tim-nhap-otio
-key Return
-pick_file "$qa/nguon" ban-giao.otio 03-chon-otio
-capture 04-da-nhap
-at_frame 30
-capture 04a-canh-chen
-at_frame 120
-capture 04b-clip-chinh
-xdotool mousemove 480 670
-key Home shift+Left ctrl+s
-pick_file "$proof" r27-otio.blend 05-luu-ban-blender
+bo_khoi_tao() {
+  sleep 2
+  xdotool mousemove 680 666 click 1
+  sleep 2
+  xdotool mousemove 996 630 click 1
+  key Escape
+}
+
+if [[ ! -s "$proof/r27-otio.blend" ]]; then
+  start_app --factory-startup --app-template Video_Editing
+  bo_khoi_tao
+  capture 01-khong-gian-dung
+  xdotool mousemove 480 670
+  key F3
+  sleep .5
+  type_text 'Import OpenTimelineIO'
+  sleep .6
+  capture 02-tim-nhap-otio
+  key Return
+  pick_file "$qa/nguon" ban-giao.otio 03-chon-otio
+  capture 04-da-nhap
+  at_frame 30
+  capture 04a-canh-chen
+  at_frame 120
+  capture 04b-clip-chinh
+  xdotool mousemove 480 670
+  key Home shift+Left ctrl+s
+  pick_file "$proof" r27-otio.blend 05-luu-ban-blender
+  key ctrl+q
+  timeout 18 tail --pid="$app_pid" -f /dev/null
+  wait "$app_pid"
+  app_pid=""
+fi
 [[ -s "$proof/r27-otio.blend" ]]
-key ctrl+q
-timeout 18 tail --pid="$app_pid" -f /dev/null
-wait "$app_pid"
-app_pid=""
 start_app "$proof/r27-otio.blend"
+bo_khoi_tao
 at_frame 30
 capture 06-canh-chen-sau-khi-mo-lai
 at_frame 120

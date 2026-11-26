@@ -19,6 +19,9 @@ jobs:
           qa="$RUNNER_TEMP/veo-r27-blender"
           mkdir -p "$qa"/{nguon,proof}
           gh run download 45824527845 -R "$GITHUB_REPOSITORY" --name veo-ban-giao-r27-windows --dir "$qa/nguon"
+          gh run download 45830202333 -R "$GITHUB_REPOSITORY" --name veo-r27-blender-giao-dien --dir "$qa/vua-luu"
+          printf '6d99eb5cc9cd38ee7eccb6dbf1f6fd643007e577b02271f12029bb0e8ecde6d3  %s\n' "$qa/vua-luu/r27-otio.blend" | sha256sum -c
+          cp "$qa/vua-luu/r27-otio.blend" "$qa/proof/"
           (cd "$qa/nguon"
             sha256sum -c <<'SUMS'
           6951d1bb39e18203430a2292f1fada939214202e0a004a4c6955b25864cc6196  ban-giao.otio
@@ -38,7 +41,7 @@ jobs:
           printf 'dacb8264197a3f7fda6001285a5a506fc97ee943881261c2c3bd63c882f22e05  %s\n' "$package" | sha256sum -c
           tar -xJf "$package"
           wait "$tools_pid" || { tail -30 "$qa/cai-cong-cu.log"; exit 1; }
-      - name: Nhập OTIO, lưu, mở lại và kiểm hai clip trong Blender
+      - name: Mở lại bản Blender đã lưu qua giao diện và kiểm hai clip
         shell: bash
         run: |
           set -euo pipefail
