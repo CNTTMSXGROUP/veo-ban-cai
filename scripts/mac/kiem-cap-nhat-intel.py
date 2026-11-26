@@ -185,7 +185,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         subprocess.run(["codesign","--verify","--deep","--strict",app],check=True)
         resources=app/"Contents/Resources"
         worker_hash=sha(resources/"worker/dung-app.mjs")
-        assert worker_hash=="ef6a14085397580bb9d748fea6c4ed122e9b2b955c59f57172086b73e0be16b1"
+        assert worker_hash=="cf6d5faf0ab00e1ef3d07f351756d2859f1f697a804979495b6ae40dcfb98477"
         assert manifest(resources/"phan-chay.json")==new
         notices={"LICENSE":"8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615",
                  "PATENTS":"cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"}
@@ -202,12 +202,17 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         assert actual==streams and sha(old_file)==hashes[old_file]
         print(f"hình trước {before_picture} · sau {after_picture}",flush=True)
         assert after_picture==before_picture,"Tệp xuất lại khác hình giải mã."
+        client(live,route+"/export",{"video":False,"draft":True,"name":"Veo-nhap-sau-0324"})
+        draft,=[Path(f) for f in wait_job(live,route,"xuat")["project"]["job"]["files"] if f.endswith(".otio")]
+        otio_start=json.loads(draft.read_text())["global_start_time"]
+        assert otio_start=={"OTIO_SCHEMA":"RationalTime.1","value":0,"rate":30}
         proof={"host":os.uname().machine,"from":"0.3.23","to":"0.3.24","history":len(before["history"]),
                "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":True,
-               "runtimeBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash}
+               "runtimeBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash,"otioFps":otio_start["rate"]}
         evidence=root/"minh-chung"
         evidence.mkdir()
         shutil.copy2(new_file,evidence/"Veo-sau-0324.mp4")
+        shutil.copy2(draft,evidence/"Veo-nhap-sau-0324.otio")
         (evidence/"ket-qua.json").write_text(json.dumps(proof,ensure_ascii=False,indent=2)+"\n")
         print(json.dumps(proof,ensure_ascii=False),flush=True)
     finally:
