@@ -85,8 +85,8 @@ function Sua-Bang-Phim([string]$Name, [byte]$Key, [byte]$Scan, [scriptblock]$Pre
     try {
         $Result = Wait-Moc $Predicate 4 "Chưa thấy thay đổi từ phím $Name."
     } catch {
-        $Input = Wait-Moc { Find-Ui $Button -ButtonPrefix } 10 "Không thấy nút $Button."
-        Click-Ui $Input
+        $ButtonItem = Wait-Moc { Find-Ui $Button -ButtonPrefix } 10 "Không thấy nút $Button."
+        Click-Ui $ButtonItem
         $Result = Wait-Moc $Predicate 20 "Chưa ghi được kết quả từ nút $Button."
         Write-Host "Lượt thử tiếp tục bằng nút $Button sau phím $Name."
         return $Result
@@ -221,7 +221,7 @@ try {
     Keys '{ENTER}'
     if (!(Find-Ui 'Video trong lô')) { Click-Ui (Ui 'Xuất 3 video đã chọn') }
     Click-Ui (Ui 'Video trong lô')
-    foreach ($Name in $SelectedNames) { $null = Ui $Name }
+    $null = Anh 'hop-xuat-lo'
     Click-Ui (Ui '720p')
     $Batch = [Diagnostics.Stopwatch]::StartNew()
     Click-Ui (Ui 'Xuất 3 tệp')
