@@ -129,8 +129,11 @@ def verify_worker(updated, old_runtime, ffmpeg_archive):
         shutil.copy2(resources/name,runtime_check/name)
     shutil.rmtree(runtime_check/'fonts')
     shutil.copytree(resources/'fonts',runtime_check/'fonts')
+    observed=runtime_check/'do-luong-x264'
+    shutil.copy2(root/'do-luong-x264.py',observed)
+    observed.chmod(0o700)
     child_env={k:v for k,v in env.items() if k not in ('DUNG_PORT','DUNG_TOKEN','DUNG_TU_CHAY_LAI','DUNG_GIU','NODE_OPTIONS')}
-    child_env.update(DUNG_DATA=str(data),DUNG_FFMPEG=str(runtime_check/'ffmpeg'),DUNG_FFPROBE=str(runtime_check/'ffprobe'),
+    child_env.update(DUNG_DATA=str(data),DUNG_FFMPEG=str(observed),VEO_QA_DO_LUONG_X264=str(root/'do-luong.json'),DUNG_FFPROBE=str(runtime_check/'ffprobe'),
                      DUNG_FONTS=str(runtime_check/'fonts'),DUNG_DEEP_FILTER=str(runtime_check/'deep-filter'),
                      DUNG_PIXEL_DIR=str(resources/'pixel'),DUNG_MAU_VIDEO_DIR=str(resources/'mau-video'),
                      DUNG_WHISPER_CLI=str(runtime_check/'whisper-cli'),DUNG_PORT='0',DUNG_TU_SUA='1',
@@ -274,6 +277,12 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         assert cpu_actual==cpu_streams
         evidence=root/"minh-chung"
         evidence.mkdir()
+        controlled=json.loads((root/"do-luong.json").read_text())
+        assert controlled["productionDecoded"]==after_cpu
+        controlled["firstRunDecoded"]="SHA256=1244bbee25d1a248e18962c0ef8b9d115d69aae0afdf60323e45c7b0ddc6aaa3"
+        controlled["matchesFirstRun"]=[int(n) for n,h in controlled["forcedThreadsDecoded"].items() if h==controlled["firstRunDecoded"]]
+        (evidence/"doi-chieu-luong-x264.json").write_text(json.dumps(controlled,ensure_ascii=False,indent=2)+"\n")
+        print(json.dumps(controlled,ensure_ascii=False),flush=True)
         for file in (old_file, new_file, old_cpu, new_cpu):
             shutil.copy2(file, evidence/file.name)
 

@@ -43,6 +43,7 @@ jobs:
           base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
           curl -fsS --retry 2 "$base/phan-chay-cap-nhat-intel.json" -o phan-chay-moi.json
           curl -fsS --retry 2 "$base/kiem-cap-nhat-intel.py" -o kiem-cap-nhat-intel.py
+          curl -fsS --retry 2 "$base/do-luong-x264.py" -o do-luong-x264.py
           curl -fsS --retry 2 "$base/kiem-chuyen-kho.py" -o kiem-chuyen-kho.py
           curl -fsS --retry 2 "$base/sau-khi-ghi.mjs" -o sau-khi-ghi.mjs
           curl -fLsS --max-time 180 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
