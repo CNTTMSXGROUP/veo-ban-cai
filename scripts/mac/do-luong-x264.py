@@ -7,8 +7,9 @@ import sys
 
 executable=Path(__file__).resolve().with_name('ffmpeg')
 flags=sys.argv[1:]
-target='Veo-sau-0324-CPU.dang-xuat.mp4'
-if not flags or not flags[-1].endswith(target):
+preset=flags.index('-preset') if '-preset' in flags else -1
+target='.Veo-sau-0324-CPU.mp4.dang-xuat.mp4'
+if preset<0 or flags[preset+1]!='slow' or Path(flags[-1]).name!=target:
     os.execv(executable,[str(executable),*flags])
 
 result=sp.run([executable,*flags])
