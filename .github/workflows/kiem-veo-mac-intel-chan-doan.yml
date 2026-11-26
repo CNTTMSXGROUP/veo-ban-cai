@@ -1,0 +1,42 @@
+name: Chẩn đoán cửa sổ dựng storyboard trên Vèo Mac Intel
+on:
+  push:
+    branches: [kiem-veo-mac-intel-chan-doan]
+permissions:
+  contents: read
+jobs:
+  ve-o:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            chip: x64
+            dmg_sha: 56b79deacec251cdc5f7de6739569b3e3aa7d844b40d938b7d406f7f31e5aab9
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Cài Vèo, tạo storyboard bằng chuột và phím rồi mở lại MP4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_QA_DMG_SHA: ${{ matrix.dmg_sha }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-cua-so"
+          mkdir -p "$qa"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-cua-so-chan-doan.sh; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-cua-so-chan-doan.sh" "$qa" "$VEO_QA_DMG_SHA"
+      - name: Lưu ảnh, video và kết quả
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-chan-doan-intel
+          path: ${{ runner.temp }}/veo-qa-mac-cua-so/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
