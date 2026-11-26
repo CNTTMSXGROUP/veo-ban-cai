@@ -129,8 +129,11 @@ def verify_worker(updated, old_runtime, ffmpeg_archive):
         shutil.copy2(resources/name,runtime_check/name)
     shutil.rmtree(runtime_check/'fonts')
     shutil.copytree(resources/'fonts',runtime_check/'fonts')
+    encoder=runtime_check/'so-cung-luong-x264'
+    shutil.copy2(root/'so-cung-luong-x264.py',encoder)
+    encoder.chmod(0o700)
     child_env={k:v for k,v in env.items() if k not in ('DUNG_PORT','DUNG_TOKEN','DUNG_TU_CHAY_LAI','DUNG_GIU','NODE_OPTIONS')}
-    child_env.update(DUNG_DATA=str(data),DUNG_FFMPEG=str(runtime_check/'ffmpeg'),DUNG_FFPROBE=str(runtime_check/'ffprobe'),
+    child_env.update(DUNG_DATA=str(data),DUNG_FFMPEG=str(encoder),DUNG_FFPROBE=str(runtime_check/'ffprobe'),
                      DUNG_FONTS=str(runtime_check/'fonts'),DUNG_DEEP_FILTER=str(runtime_check/'deep-filter'),
                      DUNG_PIXEL_DIR=str(resources/'pixel'),DUNG_MAU_VIDEO_DIR=str(resources/'mau-video'),
                      DUNG_WHISPER_CLI=str(runtime_check/'whisper-cli'),DUNG_PORT='0',DUNG_TU_SUA='1',
@@ -302,13 +305,19 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
                  "cpuAfter":{"picture":decoded(new_cpu),"encoder":x264(new_cpu)}}
         cpu_equal=details["cpuBefore"]["picture"]==details["cpuAfter"]["picture"]
         assert cpu_equal==(cpu["changedFrames"]==0)
+        equal_auto=automatic["changedFrames"]==0
+        if not equal_auto:
+            compared,streams_compared,_=render(live,route,"Veo-sau-0324-tu-chon-so-cung-luong")
+            assert streams_compared==streams
+            details["automaticFixedThreads"]=compare(old_file,compared,"auto-cung-luong")
+            equal_auto=details["automaticFixedThreads"]["changedFrames"]==0
+            shutil.copy2(compared,evidence/compared.name)
         if not cpu_equal:
-            time.sleep(3)
-            try_again, retry_streams, _=render(live,route,"Veo-sau-0324-CPU-lap-lai",best=True)
-            assert retry_streams==cpu_streams
-            details["cpuRetry"]={"picture":decoded(try_again),"encoder":x264(try_again)}
-            shutil.copy2(try_again,evidence/try_again.name)
-            cpu_equal=details["cpuRetry"]["picture"]==details["cpuBefore"]["picture"]
+            compared,streams_compared,_=render(live,route,"Veo-sau-0324-CPU-so-cung-luong",best=True)
+            assert streams_compared==cpu_streams
+            details["cpuFixedThreads"]=compare(old_cpu,compared,"cpu-cung-luong")
+            cpu_equal=details["cpuFixedThreads"]["changedFrames"]==0
+            shutil.copy2(compared,evidence/compared.name)
         (evidence/"so-khung-hinh.json").write_text(json.dumps(details,ensure_ascii=False,indent=2)+"\n")
         print(json.dumps(details,ensure_ascii=False),flush=True)
         request=client(live,route+"/export",{"video":False,"draft":True,"name":"Veo-nhap-sau-0324"})
@@ -322,15 +331,15 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         assert "Bản nháp OTIO dùng hình gốc. Chọn MP4 để bàn giao video đã áp vùng che." in saved["result"]["notes"]
         assert otio_start=={"OTIO_SCHEMA":"RationalTime.1","value":0,"rate":30}
         proof={"host":os.uname().machine,"from":"0.3.23","to":"0.3.24","history":len(before["history"]),
-               "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":cpu_equal,"automaticPictureEqual":after_picture==before_picture,"automaticPicturePsnr":automatic["summary"],
+               "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":cpu_equal and equal_auto,"automaticPictureEqual":after_picture==before_picture,"automaticPicturePsnr":automatic["summary"],
                "signedUpdateRelaunched":True,"newRuntimeRequests":fetched,"verifiedFfmpegBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash,"otioFps":otio_start["rate"],"otioMaskWarning":True,"otioCarriedInserts":len(carried)}
         shutil.copy2(draft,evidence/"Veo-nhap-sau-0324.otio")
         subprocess.run([sys.executable,root/"kiem-chuyen-kho.py",root/"chuyen-kho",runtime,runtime/"dung-app.mjs",runtime/"fonts"],check=True)
         shutil.copy2(root/"chuyen-kho/ket-qua.json",evidence/"chuyen-kho.json")
         (evidence/"ket-qua.json").write_text(json.dumps(proof,ensure_ascii=False,indent=2)+"\n")
         print(json.dumps(proof,ensure_ascii=False),flush=True)
-        assert automatic["changedFrames"]==0,"Tệp xuất tự chọn encoder khác hình giải mã."
-        assert cpu_equal,"Tệp xuất lại với cùng preset CPU khác hình giải mã."
+        assert equal_auto,"Tệp xuất tự chọn encoder khác hình khi cùng số luồng."
+        assert cpu_equal,"Tệp xuất CPU khác hình khi cùng số luồng."
     finally:
         if "proc_check" in locals(): stop_test_worker(proc_check)
         for line in subprocess.check_output(["/bin/ps","-axo","pid=,args="],text=True).splitlines():
