@@ -176,8 +176,12 @@ try {
     Click-Ui (Ui 'Tạo đồ họa')
     $Button = Wait-Moc { Find-Ui 'Tải bộ dựng' -ButtonPrefix } 25 'Không thấy nút tải bộ dựng.'
     $null = Anh '01-tai-bo-dung'
+    $Clock = [Diagnostics.Stopwatch]::StartNew()
     Click-Ui $Button
+    $null = Wait-Moc { Find-Ui 'Máy chủ chưa cung cấp được gói tải này. Hãy thử lại sau.' } 10 'Vèo chưa giải thích vì sao gói chưa tải được.'
     $Retry = Wait-Moc { Find-Ui 'Thử tải lại' -ButtonPrefix } 40 'Vèo chưa hiện thao tác thử tải lại.'
+    $Clock.Stop()
+    [string]$Clock.ElapsedMilliseconds | Set-Content -LiteralPath (Join-Path $Proof 'thoi-gian-bao-loi-ms.txt') -Encoding utf8
     if (Test-Path $Cache) { throw 'Máy chủ trả 404 mà app đã nhận gói.' }
     $null = Anh '02-thu-tai-lai'
     Copy-Item -LiteralPath $Archive -Destination (Join-Path $Body $Part.tep)
@@ -186,7 +190,9 @@ try {
     Click-Ui (Ui 'Chữ động')
     Dien 'Dòng chữ' 'Góc đọc sách'
     Click-Ui (Ui 'Dựng bản xem')
-    $null = Wait-Moc { Find-Ui 'Video xem thử đồ họa' } 140 'Chưa thấy bản xem chữ động.'
+    $Slider = Wait-Moc { Find-Ui 'Tua video xem thử đồ họa' } 140 'Chưa thấy bản xem chữ động.'
+    Mouse-Ui $Slider .30
+    Start-Sleep -Milliseconds 300
     $null = Anh '03-xem-chu-dong'
     Click-Ui (Ui 'Dùng đồ họa cho cảnh 1')
     $null = Ui 'Sửa đồ họa'

@@ -15,6 +15,8 @@ traffic = re.findall(
     server_log.read_text(encoding="utf-8", errors="replace"),
 )
 assert traffic == ["404", "200"], traffic
+error_ms = int((proof / "thoi-gian-bao-loi-ms.txt").read_text(encoding="utf-8-sig").strip())
+assert 0 < error_ms < 8000, error_ms
 
 preview, = data.glob("phong-cach/do-hoa-v*/*/xem.mp4")
 layer = preview.with_name("lop.mov")
@@ -50,7 +52,7 @@ changed = sum(abs(a - b) > 20 for a, b in zip(diff[:area], diff[area:]))
 assert changed > 1000, changed
 print(json.dumps({
     "platform": sys.platform, "packageSha256": part["sha256"], "packageBytes": part["size"],
-    "downloadStatuses": traffic, "downloadOnReopen": 0,
+    "downloadStatuses": traffic, "missingPackageFeedbackMs": error_ms, "downloadOnReopen": 0,
     "videoSha256": hashlib.sha256(video.read_bytes()).hexdigest(),
     "streams": frames, "layer": render, "preview": view, "movingPixels": changed,
     "openedAndPlayedAfterRestart": True,

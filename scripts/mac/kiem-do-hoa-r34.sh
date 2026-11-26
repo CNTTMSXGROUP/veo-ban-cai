@@ -139,8 +139,12 @@ click 'Ngang 16:9'
 click 'Tạo đồ họa'
 ui wait 'Tải bộ dựng*' 25
 capture '01-tai-bo-dung'
+now_ms() { python3 -c 'import time; print(time.monotonic_ns() // 10**6)'; }
+download_started="$(now_ms)"
 click 'Tải bộ dựng*'
+ui wait 'Máy chủ chưa cung cấp được gói tải này. Hãy thử lại sau.' 10
 ui wait 'Thử tải lại*' 40
+printf '%s\n' "$(( $(now_ms) - download_started ))" > "$proof/thoi-gian-bao-loi-ms.txt"
 [[ ! -e "$data/goi-do-hoa/$renderer_sha/render-hyperframes" ]]
 capture '02-thu-tai-lai'
 cp "$qa/$renderer_file" "$qa/goi/$renderer_file"
@@ -155,6 +159,7 @@ printf '%s' 'Góc đọc sách' | /usr/bin/pbcopy
 ui replace-app 'Dòng chữ'
 click 'Dựng bản xem'
 ui wait 'Video xem thử đồ họa' 140
+sleep 0.9
 capture '03-xem-chu-dong'
 click 'Dùng đồ họa cho cảnh 1'
 ui wait 'Sửa đồ họa' 15
