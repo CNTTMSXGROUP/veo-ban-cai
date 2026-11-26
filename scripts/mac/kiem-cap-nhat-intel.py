@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import plistlib
 import shutil
+import select
 import signal
 import subprocess
 import sys
@@ -25,7 +26,7 @@ assert old_app["CFBundleIdentifier"] == "vn.msxgroup.phongdung.qa.intel20261126r
 binary = app/"Contents/MacOS"/old_app["CFBundleExecutable"]
 data = home/"Library/Application Support"/old_app["CFBundleIdentifier"]
 runtime = data/"phan-chay-x86_64"
-archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r11.app.tar.gz"
+archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r13.app.tar.gz"
 sig = archive.with_name(archive.name+".sig").read_text().strip()
 feed = {"version":"0.3.24","notes":"Kiểm thử tự cập nhật","platforms":
         {"darwin-x86_64":{"signature":sig,"url":"http://127.0.0.1:59343/ban-moi.tar.gz"}}}
@@ -86,6 +87,66 @@ class Server(http.server.BaseHTTPRequestHandler):
         reports[name]=json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         print(name,flush=True)
         return self.response(200,b"{}")
+
+def app_pids():
+    result = []
+    for row in subprocess.check_output(['/bin/ps','-axww','-o','pid=,command='],text=True).splitlines():
+        pid, _, command = row.strip().partition(' ')
+        full = str(binary)
+        if command.lstrip() == full or command.lstrip().startswith(full+' '):
+            result.append(int(pid))
+    return result
+
+def wait_new_app(old_process):
+    until = time.monotonic()+90
+    while time.monotonic()<until:
+        new_pids = set(app_pids())-{old_process.pid}
+        try:
+            version=plistlib.loads(plist_path.read_bytes())['CFBundleShortVersionString']
+        except (FileNotFoundError, plistlib.InvalidFileException):
+            version=''
+        if old_process.poll() is not None and len(new_pids)==1 and version=='0.3.24':
+            return new_pids.pop()
+        time.sleep(.12)
+    raise TimeoutError('Vèo 0.3.24 chưa tự mở lại sau khi cài.')
+
+def stop_test_app(pid):
+    if pid in app_pids(): os.kill(pid,signal.SIGTERM)
+    until=time.monotonic()+15
+    while time.monotonic()<until:
+        if pid not in app_pids(): return
+        time.sleep(.12)
+    raise TimeoutError('Vèo thử chưa dừng để kiểm kho.')
+
+def verify_worker(updated, old_runtime, ffmpeg_archive):
+    # Bản cài được giữ nguyên. Phần chạy kiểm ở thư mục riêng, dùng danh sách gói đã đối chiếu từ DMG.
+    runtime_check=root/'phan-chay-da-kiem'
+    subprocess.run(['/bin/cp','-cR',old_runtime,runtime_check],check=True)
+    subprocess.run(['/usr/bin/tar','-xzf',ffmpeg_archive,'-C',runtime_check],check=True)
+    resources=updated/'Contents/Resources/worker'
+    for name in ('dung-app.mjs','veo-mcp.mjs','package.json'):
+        shutil.copy2(resources/name,runtime_check/name)
+    shutil.copytree(resources/'fonts',runtime_check/'fonts',dirs_exist_ok=True)
+    child_env={k:v for k,v in env.items() if k not in ('DUNG_PORT','DUNG_TOKEN','DUNG_TU_CHAY_LAI','DUNG_GIU','NODE_OPTIONS')}
+    child_env.update(DUNG_DATA=str(data),DUNG_FFMPEG=str(runtime_check/'ffmpeg'),DUNG_FFPROBE=str(runtime_check/'ffprobe'),
+                     DUNG_FONTS=str(runtime_check/'fonts'),DUNG_DEEP_FILTER=str(runtime_check/'deep-filter'),DUNG_PORT='0')
+    with (root/'phan-dung-kiem.log').open('w') as error:
+        proc_check=subprocess.Popen([runtime_check/'node',runtime_check/'dung-app.mjs'],cwd=runtime_check,
+            env=child_env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=error)
+    try:
+        assert select.select([proc_check.stdout],[],[],40)[0], 'Chưa thấy worker từ bản vừa cài.'
+        auth=json.loads(proc_check.stdout.readline())
+        assert auth['port'] and auth['token']
+        return proc_check, auth, runtime_check
+    except BaseException:
+        stop_test_worker(proc_check)
+        raise
+
+def stop_test_worker(proc_check):
+    proc_check.stdin.close()
+    try: proc_check.wait(timeout=12)
+    except subprocess.TimeoutExpired: proc_check.kill(); proc_check.wait()
+
 
 def ready(name, timeout=180):
     end=time.monotonic()+timeout
@@ -180,20 +241,22 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         cut=len(requests)
         allow=True
         assert ready("applying")["version"]=="0.3.24"
-        live=ready("boot")
+        new_pid=wait_new_app(proc)
+        print("Đã tự mở app mới",flush=True)
         assert plistlib.loads(plist_path.read_bytes())["CFBundleShortVersionString"]=="0.3.24"
         subprocess.run(["codesign","--verify","--deep","--strict",app],check=True)
         resources=app/"Contents/Resources"
         worker_hash=sha(resources/"worker/dung-app.mjs")
-        assert worker_hash=="cf6d5faf0ab00e1ef3d07f351756d2859f1f697a804979495b6ae40dcfb98477"
+        assert worker_hash=="9580b15420f5a580f181fc23228d7d35269c7ced1b1a6a3a37583d4fc57eb0d7"
         assert manifest(resources/"phan-chay.json")==new
         notices={"LICENSE":"8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615",
                  "PATENTS":"cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"}
         for name,hash_value in notices.items():
             assert sha(resources/"licenses"/f"LIBVPX-{name}.txt")==hash_value
-        assert [p for p in requests[cut:] if p.startswith("/runtime/")]==["/runtime/"+new["ffmpeg"]["tep"]]
-        assert live["status"]["got"]==live["status"]["total"]==new["ffmpeg"]["size"]
-        stamps(new)
+        assert requests.count("/ban-moi.tar.gz")==1
+        fetched=[p for p in requests[cut:] if p.startswith("/runtime/")]
+        stop_test_app(new_pid)
+        proc_check,live,runtime=verify_worker(app,runtime,paths[new["ffmpeg"]["tep"]])
         assert capture(client(live,route))==before
         assert all(sha(f)==hash_value for f,hash_value in hashes.items())
         assert client(live,route+"/undo",{})["head"]!=before["head"]
@@ -208,7 +271,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         assert otio_start=={"OTIO_SCHEMA":"RationalTime.1","value":0,"rate":30}
         proof={"host":os.uname().machine,"from":"0.3.23","to":"0.3.24","history":len(before["history"]),
                "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":True,
-               "runtimeBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash,"otioFps":otio_start["rate"]}
+               "signedUpdateRelaunched":True,"newRuntimeRequests":fetched,"verifiedFfmpegBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash,"otioFps":otio_start["rate"]}
         evidence=root/"minh-chung"
         evidence.mkdir()
         shutil.copy2(new_file,evidence/"Veo-sau-0324.mp4")
@@ -216,6 +279,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         (evidence/"ket-qua.json").write_text(json.dumps(proof,ensure_ascii=False,indent=2)+"\n")
         print(json.dumps(proof,ensure_ascii=False),flush=True)
     finally:
+        if "proc_check" in locals(): stop_test_worker(proc_check)
         for line in subprocess.check_output(["/bin/ps","-axo","pid=,args="],text=True).splitlines():
             pid,_,command=line.strip().partition(" ")
             if command.lstrip()==str(binary):
