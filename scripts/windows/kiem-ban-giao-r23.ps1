@@ -243,6 +243,7 @@ try {
         })
         if ($Files.Count -ne 1 -or !$Files[0].Length) { throw "Thiếu tệp $Ext hoặc xuất trùng." }
         $Outputs[$Ext] = $Files[0]
+        Copy-Item -LiteralPath $Files[0].FullName -Destination (Join-Path $Proof "ban-giao.$Ext")
     }
     $Video = (& $Probe -v error -select_streams 'v:0' -show_entries 'stream=codec_name,width,height,nb_frames,avg_frame_rate' -of json $Outputs.mp4.FullName | ConvertFrom-Json).streams[0]
     if ($LASTEXITCODE -ne 0 -or $Video.codec_name -ne 'h264' -or $Video.width -ne 720 -or $Video.height -ne 720 -or
@@ -255,16 +256,20 @@ try {
 
     [xml]$Xml = Get-Content -LiteralPath $Outputs.fcpxml.FullName -Raw -Encoding utf8
     if ($Xml.fcpxml.version -ne '1.10' -or @($Xml.SelectNodes('//sequence')).Count -ne 1) { throw 'FCPXML sai cấu trúc.' }
-    $FcpPaths = @($Xml.SelectNodes('//media-rep') | ForEach-Object { ([uri]$_.src).LocalPath })
+    $FcpPaths = @($Xml.SelectNodes('//media-rep') | ForEach-Object { ([uri]$_.GetAttribute('src')).LocalPath })
     $Connected = $Xml.SelectSingleNode('//asset-clip[@lane="1"]')
     if (!$Connected -or $Connected.GetAttribute('offset') -ne '0s') { throw 'Không thấy cảnh chèn ở đầu FCPXML.' }
     $FcpSource = $Xml.SelectSingleNode("//asset[@id='$($Connected.ref)']")
-    if (!$FcpSource -or ([uri]$FcpSource.'media-rep'.src).LocalPath -ne $Insert) { throw 'Cảnh chèn FCPXML trỏ sai nguồn.' }
+    if (!$FcpSource) { throw 'Thiếu cảnh chèn trong tài nguyên FCPXML.' }
+    $InsertCopy = ([uri]$FcpSource.SelectSingleNode('media-rep').GetAttribute('src')).LocalPath
+    if (!(Test-Path -LiteralPath $InsertCopy) -or (Get-FileHash -LiteralPath $InsertCopy).Hash -ne (Get-FileHash -LiteralPath $Insert).Hash) {
+        throw "Cảnh chèn FCPXML không khớp bản chép của tư liệu: $InsertCopy"
+    }
     $OtioFile = Get-Content -LiteralPath $Outputs.otio.FullName -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable -Depth 100
     if ($OtioFile.OTIO_SCHEMA -ne 'Timeline.1' -or $OtioFile.tracks.children.Count -lt 2) { throw 'OTIO thiếu timeline hoặc hàng cảnh chèn.' }
     $OtioPaths = @($OtioFile.tracks.children | ForEach-Object { $_.children } | Where-Object { $_.OTIO_SCHEMA -eq 'Clip.2' } |
         ForEach-Object { ([uri]$_.media_references.DEFAULT_MEDIA.target_url).LocalPath } | Sort-Object -Unique)
-    foreach ($Ref in @($Main, $Insert)) {
+    foreach ($Ref in @($Main, $InsertCopy)) {
         if ($Ref -notin $FcpPaths -or $Ref -notin $OtioPaths -or !(Test-Path -LiteralPath $Ref)) { throw "Mất liên kết nguồn: $Ref" }
     }
     $OtioInsert = $OtioFile.tracks.children[1].children[0]
@@ -276,7 +281,6 @@ try {
     $Hash = @{}
     foreach ($Ext in $Outputs.Keys) {
         $Hash[$Ext] = (Get-FileHash -LiteralPath $Outputs[$Ext].FullName).Hash.ToLowerInvariant()
-        Copy-Item -LiteralPath $Outputs[$Ext].FullName -Destination (Join-Path $Proof "ban-giao.$Ext")
     }
     Keys '%{F4}'
     if (!$App.WaitForExit(15000)) { throw 'Vèo chưa đóng.' }
