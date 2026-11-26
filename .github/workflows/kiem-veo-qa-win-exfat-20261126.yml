@@ -23,8 +23,8 @@ jobs:
           $Draft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
           if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Thiếu bản nháp kiểm thử.' }
           $Files = @{
-            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r12.exe' = '7c4953a7e7c1ef25f750666c6748e3f5012dcfb439b8ef1688389bec9ba9966e'
-            'veo-qa-e1d2e92-giu-lan-xuat.mjs' = '665e63cc4345cafb4451b67b74110ab3ad276365867b1eedccdff18690dd5654'
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r13.exe' = 'ec86bc8faacc115070cca7d5c0b5191fbff58d6f70fcc643b79558d17148e55e'
+            'veo-qa-cbedddf-giu-lan-xuat.mjs' = '46ec9ba9ea45066d82b2ccf0d912d3fe246cbdcd598cdd6e25dd9dd5749854cd'
           }
           $Download = @('release','download',$Tag,'-R',$env:GITHUB_REPOSITORY,'--dir',$Dir)
           Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/kiem-cho-chep-exfat.py" -OutFile (Join-Path $Dir 'kiem-cho-chep-exfat.py')
@@ -39,7 +39,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa-exfat'
-          $Setup = Join-Path $Dir 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r12.exe'
+          $Setup = Join-Path $Dir 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r13.exe'
           $Install = Join-Path $Dir 'Vèo thử, [Windows]'
           $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
@@ -47,8 +47,8 @@ jobs:
           $Worker = Join-Path $Install 'worker/dung-app.mjs'
           if (!(Test-Path -LiteralPath $Worker -PathType Leaf)) { throw "Thiếu phần dựng sau cài đặt: $Worker" }
           $WorkerHash = (Get-FileHash -LiteralPath $Worker -Algorithm SHA256).Hash
-          if ($WorkerHash -ne 'e4870a54fab985deda4b50369d29813a598650401c70260312cdc4a059665ecd') { throw "Sai mã băm phần dựng trong bộ cài: $WorkerHash" }
-          Move-Item -LiteralPath (Join-Path $Dir 'veo-qa-e1d2e92-giu-lan-xuat.mjs') -Destination (Join-Path $Dir 'giu-lan-xuat.mjs')
+          if ($WorkerHash -ne '9580b15420f5a580f181fc23228d7d35269c7ced1b1a6a3a37583d4fc57eb0d7') { throw "Sai mã băm phần dựng trong bộ cài: $WorkerHash" }
+          Move-Item -LiteralPath (Join-Path $Dir 'veo-qa-cbedddf-giu-lan-xuat.mjs') -Destination (Join-Path $Dir 'giu-lan-xuat.mjs')
 
           $Vhd = Join-Path $Dir 'veo-qa-fixture.vhd'
           $PartScript = Join-Path $Dir 'tao-vhd.txt'
@@ -76,7 +76,7 @@ jobs:
       - name: Lưu kết quả xác minh tệp đã chép tiếp
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-windows-cho-chep-r12
+          name: veo-windows-cho-chep-r13
           path: ${{ runner.temp }}/veo-qa-exfat/kiem-app-windows/ket-qua.json
           if-no-files-found: error
           retention-days: 30
