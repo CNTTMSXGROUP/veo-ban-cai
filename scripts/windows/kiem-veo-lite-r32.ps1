@@ -26,11 +26,15 @@ function Cloud-Budget([string]$USD) {
     $Details = Wait-Moc { Find-Ui 'Kết nối Veo qua Google Cloud' -TextPrefix -Focusable } 15 'Không thấy mục kết nối Veo.'
     $Details.SetFocus()
     if (!(Find-Ui 'Dùng phiên Google Cloud')) { Keys '{ENTER}'; Thay 'Dùng phiên Google Cloud' }
-    Keys '{TAB}'
+    $R = $Details.Current.BoundingRectangle
+    if (![VeoQaWindow]::SetCursorPos([int]($R.X + $R.Width / 2), [int]($R.Y + $R.Height / 2))) { throw 'Không đưa được chuột vào hộp Veo.' }
+    [VeoQaWindow]::mouse_event(2048, 0, 0, [uint32]4294966936, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 350
+    Mouse-Ui (Ui 'ID dự án Google Cloud')
     Nhap-Gia-Tri 'veo-lite-qa'
-    Keys '{TAB}'
+    Mouse-Ui (Ui 'Ngân sách ước tính mỗi ngày (USD)')
     Nhap-Gia-Tri $USD
-    Keys '{TAB}{ENTER}'
+    Mouse-Ui (Ui 'Dùng phiên Google Cloud')
     Thay @('Phiên Google Cloud creator@example.invalid', 'creator@example.invalid')
     Write-Host "Đã lưu ngân sách thử $USD USD trong cửa sổ."
 }
