@@ -214,26 +214,129 @@ try {
     $null = Ui 'Khung nhỏ'
     Write-Host 'Đã nhập ảnh và đặt cảnh qua giao diện.'
 
-    $Start = Scan-Capture 'mep-ban-dau' 'timeline'
+
+    $Start = Scan-Capture '01-thoi-luong-ban-dau' 'timeline'
     Drag-Pixels ($Start.right-5) $Start.y 28 0
-    $Grow = Scan-Capture 'keo-dai-mep-phai' 'timeline'
+    $Grow = Scan-Capture '02-keo-dai-mep-phai' 'timeline'
     Drag-Pixels ($Grow.right-5) $Grow.y -28 0
-    $Shrink = Scan-Capture 'thu-ngan-mep-phai' 'timeline'
-    Mouse-Ui (Ui 'Khung nhỏ')
-    Start-Sleep -Milliseconds 700
-    $Before = Scan-Capture 'khung-nho-ban-dau' 'shape'
-    Drag-Pixels ($Before.right+1) ($Before.bottom+1) -19 0
-    $After = Scan-Capture 'keo-goc-theo-ngang' 'shape'
-    $Evidence = [ordered]@{
-        source=$env:VEO_QA_SOURCE;
-        keoDaiDuoc=($Grow.width -gt $Start.width+5);
-        thuNganDuoc=($Shrink.width -lt $Grow.width-5);
-        keoNgangDoiCaChieuCao=($After.height -lt ($Before.height-2) -and $After.width -lt ($Before.width-4));
-        timeline=@($Start,$Grow,$Shrink); shape=@($Before,$After)
+    $Shrink = Scan-Capture '03-thu-ngan-mep-phai' 'timeline'
+    if ($Grow.width -lt $Start.width + 15 -or $Shrink.width -gt $Grow.width - 15 -or [Math]::Abs($Shrink.width-$Start.width) -gt 4) {
+        throw ('Mép phải chưa kéo về được: ' + (@($Start,$Grow,$Shrink) | ConvertTo-Json -Compress))
     }
-    $Evidence | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'tai-hien-canh-chen.json')
-    Write-Host ($Evidence | ConvertTo-Json -Depth 6 -Compress)
-    if (!$Evidence.keoDaiDuoc) { throw 'Chưa điều khiển được mép để tái hiện.' }
+    Drag-Pixels ($Shrink.left+3) $Shrink.y 26 0
+    $LeftIn = Scan-Capture '04-thu-ngan-mep-trai' 'timeline'
+    Drag-Pixels ($LeftIn.left+3) $LeftIn.y -26 0
+    $LeftOut = Scan-Capture '05-keo-dai-mep-trai' 'timeline'
+    if ($LeftIn.left -lt $Shrink.left + 16 -or $LeftOut.left -gt $LeftIn.left - 16 -or [Math]::Abs($LeftOut.left-$Start.left) -gt 4 -or [Math]::Abs($LeftIn.right-$Start.right) -gt 4) {
+        throw ('Mép trái chưa đổi độc lập: ' + (@($Shrink,$LeftIn,$LeftOut) | ConvertTo-Json -Compress))
+    }
+    Write-Host 'Đã kéo dài rồi thu ngắn tại hai mép thời lượng.'
+
+    function Same-Box($A, $B, [int]$px = 4) {
+        foreach ($side in @('left','right','top','bottom')) {
+            if ([Math]::Abs($A.$side - $B.$side) -gt $px) { return $false }
+        }
+        return $true
+    }
+
+    $Full = Scan-Capture '06-canh-day-khung-co-tay-nam' 'shape'
+    Drag-Pixels ($Full.right-9) ($Full.bottom-9) -68 -74
+    $Reduced = Scan-Capture '07-thu-khung-ngay-tren-khung-xem' 'shape'
+    if ($Reduced.width -gt $Full.width - 45 -or $Reduced.height -gt $Full.height - 45 -or [Math]::Abs($Reduced.left-$Full.left) -gt 4 -or [Math]::Abs($Reduced.top-$Full.top) -gt 4) {
+        throw ('Kéo góc đầy khung chưa đổi được: ' + (@($Full,$Reduced) | ConvertTo-Json -Compress))
+    }
+    Drag-Pixels ([int](($Reduced.left+$Reduced.right)/2)) ([int](($Reduced.top+$Reduced.bottom)/2)) 28 30
+    $Initial = Scan-Capture '08-doi-vi-tri-khung' 'shape'
+    if ($Initial.left -lt $Reduced.left+20 -or $Initial.top -lt $Reduced.top+20 -or [Math]::Abs($Initial.width-$Reduced.width) -gt 4 -or [Math]::Abs($Initial.height-$Reduced.height) -gt 4) {
+        throw 'Kéo thân chưa dời khung mà vẫn giữ kích thước.'
+    }
+    $Directions = @(
+        @{name='nw'; x=-1; y=-1}, @{name='n'; x=0; y=-1}, @{name='ne'; x=1; y=-1},
+        @{name='w'; x=-1; y=0}, @{name='e'; x=1; y=0},
+        @{name='sw'; x=-1; y=1}, @{name='s'; x=0; y=1}, @{name='se'; x=1; y=1}
+    )
+    function Drag-Grip($Box, $Dir, $Sign) {
+        $X = if ($Dir.x -lt 0) { $Box.left - 1 } elseif ($Dir.x -gt 0) { $Box.right + 1 } else { [int](($Box.left+$Box.right)/2) }
+        $Y = if ($Dir.y -lt 0) { $Box.top - 1 } elseif ($Dir.y -gt 0) { $Box.bottom + 1 } else { [int](($Box.top+$Box.bottom)/2) }
+        Drag-Pixels $X $Y (13*$Dir.x*$Sign) (17*$Dir.y*$Sign)
+    }
+    $Actions = @()
+    $Old = $Initial
+    foreach ($Dir in $Directions) {
+        Drag-Grip $Old $Dir 1
+        $Bigger = Scan-Capture ("09-phong-" + $Dir.name) 'shape'
+        $XChanged = $Bigger.width - $Old.width
+        $YChanged = $Bigger.height - $Old.height
+        $XExpected = [Math]::Abs($Dir.x)*13
+        $YExpected = [Math]::Abs($Dir.y)*17
+        if ([Math]::Abs($XChanged-$XExpected) -gt 4 -or [Math]::Abs($YChanged-$YExpected) -gt 4) {
+            throw ("Tay nắm $($Dir.name) không phóng theo hai trục: " + (@($Old,$Bigger) | ConvertTo-Json -Compress))
+        }
+        Drag-Grip $Bigger $Dir -1
+        $Smaller = Scan-Capture ("10-thu-" + $Dir.name) 'shape'
+        if (!(Same-Box $Old $Smaller)) { throw ("Tay nắm $($Dir.name) không thu về: " + (@($Old,$Smaller) | ConvertTo-Json -Compress)) }
+        $Actions += @{name=$Dir.name; before=$Old; bigger=$Bigger; smaller=$Smaller}
+        $Old = $Smaller
+        Write-Host "Đã phóng và thu tay nắm $($Dir.name)."
+    }
+    Keys '^z'
+    Start-Sleep -Milliseconds 900
+    $Undone = Scan-Capture '11-hoan-tac' 'shape'
+    if (!(Same-Box $Undone ($Actions[-1].bigger))) { throw 'Ctrl+Z chưa trả hình về thao tác trước.' }
+    Keys '^y'
+    Start-Sleep -Milliseconds 900
+    $Redone = Scan-Capture '12-lam-lai' 'shape'
+    if (!(Same-Box $Redone ($Actions[-1].smaller))) { throw 'Ctrl+Y chưa làm lại đúng thao tác.' }
+
+    if (!$App.CloseMainWindow() -or !$App.WaitForExit(15000)) { throw 'Chưa đóng được app để kiểm mở lại.' }
+    $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
+    $null = Wait-Moc { Find-Ui 'Đèn hiệu cuối đảo' } 85 'Mở lại app không có dự án.'
+    $Target = Wait-Moc { Find-Ui 'Sửa tay' } 15 'Mở lại app không có nút Sửa tay.'
+    Mouse-Ui $Target
+    $null = Ui 'Thu dải thời gian'
+    $Saved = Scan-Capture '13-mo-lai-du-an' 'shape'
+    if (!(Same-Box $Saved $Redone)) { throw ('Mở lại không giữ vị trí hoặc kích thước: ' + (@($Saved,$Redone) | ConvertTo-Json -Compress)) }
+
+    Mouse-Ui (Ui 'Xuất')
+    Click-Ui (Ui '720p')
+    Click-Ui (Ui 'Xuất 1 tệp')
+    $Export = Wait-Moc {
+        Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-ChildItem -LiteralPath (Join-Path $_.FullName 'xuat') -File -Filter '*.mp4' -ErrorAction SilentlyContinue |
+                Where-Object Length -gt 0 | Select-Object -First 1
+        }
+    } 150 'Chưa có MP4 xuất từ nút Xuất.'
+    $Streams = (& (Join-Path $Install 'ffprobe.exe') -v error -of json -show_entries 'stream=codec_name,codec_type,width,height,nb_frames' $Export.FullName | ConvertFrom-Json).streams
+    if ($LASTEXITCODE -ne 0) { throw 'Không đọc được MP4.' }
+    $Video = $Streams | Where-Object codec_type -eq 'video'
+    if ($Video.codec_name -ne 'h264' -or $Video.width -ne 720 -or $Video.height -ne 720 -or [int]$Video.nb_frames -ne 480) {
+        throw ('MP4 xuất sai số khung hoặc tỷ lệ: ' + ($Streams | ConvertTo-Json -Compress))
+    }
+    $ExportFrame = Join-Path $Proof '14-khung-trong-mp4.png'
+    & (Join-Path $Install 'ffmpeg.exe') -v error -ss 0.5 -i $Export.FullName -frames:v 1 -threads 1 $ExportFrame
+    if ($LASTEXITCODE -ne 0) { throw 'Không đọc được khung MP4.' }
+    $Image = [System.Drawing.Bitmap]::new($ExportFrame)
+    try { $Output = Scan-Box $Image 0 0 719 719 } finally { $Image.Dispose() }
+    $Expected = @{
+        left=720*($Saved.left-$Full.left)/$Full.width; top=720*($Saved.top-$Full.top)/$Full.height
+        right=720*($Saved.right-$Full.left)/$Full.width; bottom=720*($Saved.bottom-$Full.top)/$Full.height
+    }
+    if (!(Same-Box $Output $Expected 12)) { throw ('Khung ở MP4 khác bản xem: ' + (@($Output,$Expected) | ConvertTo-Json -Compress)) }
+    Copy-Item -LiteralPath $Export.FullName -Destination (Join-Path $Proof 'canh-chen-da-xuat.mp4')
+
+    Mouse-Ui (Ui 'Tự động')
+    $null = Wait-Moc { Find-Ui 'Thành phẩm' } 25 'Màn Tự động chưa mở bản đã xuất.'
+    Mouse-Ui (Ui 'Phát')
+    $null = Wait-Moc { Find-Ui 'Dừng' } 12 'Vèo chưa phát video đã xuất.'
+    Start-Sleep -Milliseconds 400
+    $null = Wait-Moc { Anh '15-phat-mp4-da-xuat' } 12 'Chưa chụp được lúc phát MP4.'
+    Mouse-Ui (Ui 'Dừng')
+    @{
+        source=$env:VEO_QA_SOURCE; worker=$env:VEO_QA_WORKER_SHA; timeline=@($Start,$Grow,$Shrink,$LeftIn,$LeftOut);
+        resizedFromFull=$Reduced; handles=$Actions; undo=$Undone; redo=$Redone; reopen=$Saved;
+        video=$Video; previewIn720=$Expected; exported=$Output; playedExportInApp=$true
+    } | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'ket-qua-canh-chen.json')
+    Write-Host 'Đã mở lại dự án, mở và phát MP4 trong Vèo, khớp vị trí khung xem.'
 } catch {
     if ($App -and !$App.HasExited) { $null = Anh 'loi' }
     $Roots = @($Data, (Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'))
