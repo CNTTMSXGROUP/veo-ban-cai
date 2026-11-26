@@ -1,0 +1,58 @@
+name: Kiểm tư liệu HDR trong Vèo Windows
+on:
+  push:
+    branches: [kiem-veo-hdr-tu-lieu]
+permissions:
+  contents: read
+jobs:
+  mau-windows:
+    runs-on: windows-latest
+    timeout-minutes: 16
+    permissions:
+      contents: write
+    steps:
+      - name: Lấy đúng bộ cài thử từ bản nháp
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-hdr-tu-lieu'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r22.exe'
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne 'b6c636a905c16f19ce4987853ee95dab877a9a69da9aabf6df6182bf1eefdc85') {
+            throw 'Không lấy được đúng bộ cài thử.'
+          }
+      - name: Dùng HDR làm cảnh chèn, storyboard và video nền
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-hdr-tu-lieu'
+          $Install = Join-Path $Qa 'app'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
+          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r22.exe'
+          $Process = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
+          $env:VEO_dd4ae9d53f26177d7326933aec5f1148b2a750b74355921bb14d1169a5ca8296 = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
+          if ($env:VEO_dd4ae9d53f26177d7326933aec5f1148b2a750b74355921bb14d1169a5ca8296 -ne 'dd4ae9d53f26177d7326933aec5f1148b2a750b74355921bb14d1169a5ca8296') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = '3c298f5dbf88fe9b8ebb09585b0cbca28588737f'
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
+          if (Test-Path $Data) { throw 'Cần máy thử có kho trống.' }
+          $env:DUNG_CHEP_LOI = 'may'
+          $env:NO_PROXY = '127.0.0.1,localhost'
+          $File = 'kiem-hdr-tu-lieu.ps1'
+          $Script = Join-Path $Qa $File
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile $Script
+          & pwsh -NoProfile -STA -File $Script -Install $Install -Qa $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Ca kiểm màu thất bại.' }
+      - name: Lưu video và kết quả kiểm
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-hdr-tu-lieu-windows
+          path: ${{ runner.temp }}/veo-qa-hdr-tu-lieu/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
