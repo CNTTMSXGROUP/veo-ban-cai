@@ -1,0 +1,46 @@
+name: Kiểm kho Vèo r27 khi dừng giữa chuyển dữ liệu
+on:
+  push:
+    branches: [kiem-veo-r27-chuyen-kho]
+permissions:
+  contents: write
+jobs:
+  chuyen-kho:
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - name: Khôi phục kho thử bằng phần dựng đã cài từ r27
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-r27-chuyen-kho'
+          New-Item -ItemType Directory -Path $Qa | Out-Null
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe'
+          $Draft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne 'c89212dd71f1bb2c549c7142d9af20d62b0b474a2328b272abe852517c14fa84') {
+            throw 'Thiếu bộ cài r27 đúng SHA-256.'
+          }
+          $Install = Join-Path $Qa 'app'
+          $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S', "/D=$Install") -PassThru
+          if (!$Process.WaitForExit(90000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0) { throw 'Không cài được Vèo r27.' }
+          foreach ($Name in 'kiem-chuyen-kho.py','sau-khi-ghi.mjs') {
+            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$Name" -OutFile (Join-Path $Qa $Name)
+          }
+          python (Join-Path $Qa 'kiem-chuyen-kho.py') (Join-Path $Qa 'proof') $Install (Join-Path $Install 'worker/dung-app.mjs') (Join-Path $Install 'worker/fonts')
+          if ($LASTEXITCODE -ne 0) { throw 'Khôi phục kho thử thất bại.' }
+      - name: Lưu kết quả khôi phục
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-win-r27-chuyen-kho
+          path: |
+            ${{ runner.temp }}/veo-r27-chuyen-kho/proof/ket-qua.json
+            ${{ runner.temp }}/veo-r27-chuyen-kho/proof/chan.log
+            ${{ runner.temp }}/veo-r27-chuyen-kho/proof/mo-lai.log
+          if-no-files-found: warn
+          retention-days: 30
