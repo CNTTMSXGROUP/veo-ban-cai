@@ -13,12 +13,12 @@ jobs:
         include:
           - runner: macos-26
             chip: arm64
-            revision: r36
-            dmg: eeae956f718bdbd036604f114cbc75670f83d030186ff47263dfe0e84eed4ebb
+            revision: r37
+            dmg: 9b97ea3bf88ad39d53747c63adadb98075ad5c1dacb97fce1112dc408ecdee14
           - runner: macos-15-intel
             chip: x64
-            revision: r36
-            dmg: d314f683ce0ab89283658a35bf45402f9b8743821202a5cf72d980945f0cb2ed
+            revision: r37
+            dmg: dbbedbb051d0b0c6042c26b08c6118648fcb961f5feaa44c0d21545953fdef6c
     timeout-minutes: 12
     permissions:
       contents: write
@@ -60,10 +60,10 @@ jobs:
         run: |
           $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-do-hoa'
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r36.exe'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r37.exe'
           if ((gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
           gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
-          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '0e88288e61d0c4d8d1d9ccbc7c77f784e5f6cb818c3c0acd8f012b39e43d0772') { throw 'Sai bộ cài thử.' }
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '66d9fd426ecba8f5948efdc301d5ce905212c9094ac163a51773d802b759d345') { throw 'Sai bộ cài thử.' }
           $Install = Join-Path $Qa 'app'
           if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
           $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru

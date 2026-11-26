@@ -10,6 +10,14 @@ part, = json.loads(manifest.read_text(encoding="utf-8-sig"))["items"]
 pack = data / "goi-do-hoa" / part["sha256"] / "render-hyperframes"
 assert (pack / "render.mjs").is_file()
 assert (pack / "node_modules/gsap/dist/gsap.min.js").is_file()
+assert json.loads((pack / "package.json").read_text())["veoChayLienTiep"] == 1
+license_hashes = {
+    "LICENSE-GPL-3.0.txt": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "LICENSE-LGPL-3.0.txt": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+    "NOTICE-sharp-libvips.md": "6f0d5086e3bcbee12bcdacf5878b31d1104002aeecaeb241d3fff466108082fe",
+}
+assert all(hashlib.sha256((pack / name).read_bytes()).hexdigest() == digest
+           for name, digest in license_hashes.items())
 traffic = re.findall(
     rf'"GET /{re.escape(part["tep"])} HTTP/[^"]+" (\d{{3}})',
     server_log.read_text(encoding="utf-8", errors="replace"),
@@ -18,7 +26,10 @@ assert traffic == ["404", "200"], traffic
 error_ms = int((proof / "thoi-gian-bao-loi-ms.txt").read_text(encoding="utf-8-sig").strip())
 assert 0 < error_ms < 8000, error_ms
 
-preview, = data.glob("phong-cach/do-hoa-v*/*/xem.mp4")
+previews = list(data.glob("phong-cach/do-hoa-v*/*/xem.mp4"))
+reused = proof / "tien-trinh-intel.txt"
+assert len(previews) == (2 if reused.is_file() else 1), previews
+preview = max(previews, key=lambda path: path.stat().st_mtime_ns)
 layer = preview.with_name("lop.mov")
 video = proof / "Chuyen-dong-chu.mp4"
 
@@ -53,6 +64,8 @@ assert changed > 1000, changed
 print(json.dumps({
     "platform": sys.platform, "packageSha256": part["sha256"], "packageBytes": part["size"],
     "downloadStatuses": traffic, "missingPackageFeedbackMs": error_ms, "downloadOnReopen": 0,
+    "licenseFilesMatched": list(license_hashes),
+    "consecutivePreview": reused.read_text().splitlines() if reused.is_file() else None,
     "videoSha256": hashlib.sha256(video.read_bytes()).hexdigest(),
     "streams": frames, "layer": render, "preview": view, "movingPixels": changed,
     "openedAndPlayedAfterRestart": True,

@@ -155,10 +155,35 @@ for try in {1..45}; do
 done
 [[ -f "$data/goi-do-hoa/$renderer_sha/render-hyperframes/render.mjs" ]]
 click 'Chữ động'
+if [[ "$arch" == x86_64 ]]; then
+  renderer_pid() {
+    ps -axww -o pid=,ppid=,command= | awk -v app="$app_pid" '
+      { parent[$1]=$2; if (index($0, "render.mjs --chay-lien-tiep")) workers[$1]=1 }
+      END {
+        for (pid in workers) for (p=pid; p>1; p=parent[p]) {
+          if (p==app) { print pid; break }
+          if (!(p in parent)) break
+        }
+      }'
+  }
+  printf '%s' 'Góc đọc sách bản nháp' | /usr/bin/pbcopy
+  ui replace-app 'Dòng chữ'
+  first_from="$(now_ms)"
+  click 'Dựng bản xem'
+  ui wait 'Video xem thử đồ họa' 140
+  first_ms="$(( $(now_ms) - first_from ))"
+  first_pid="$(renderer_pid)"
+fi
 printf '%s' 'Góc đọc sách' | /usr/bin/pbcopy
 ui replace-app 'Dòng chữ'
+next_from="$(now_ms)"
 click 'Dựng bản xem'
 ui wait 'Video xem thử đồ họa' 140
+if [[ "$arch" == x86_64 ]]; then
+  second_ms="$(( $(now_ms) - next_from ))"
+  next_pid="$(renderer_pid)"
+  printf 'Bản xem đầu mất %s ms. PID %s\nBản xem tiếp mất %s ms. PID %s\n' "$first_ms" "${first_pid:-trống}" "$second_ms" "${next_pid:-trống}" > "$proof/tien-trinh-intel.txt"
+fi
 sleep 0.9
 capture '03-xem-chu-dong'
 click 'Dùng đồ họa cho cảnh 1'
