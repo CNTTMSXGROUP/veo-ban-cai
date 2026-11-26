@@ -294,9 +294,6 @@ try {
     $null = Wait-Moc { Anh '04-phat-sau-khi-mo-lai' } 12 'Chưa chụp được khi phát lại.'
     Mouse-Ui (Ui 'Dừng')
     Click-Ui (Ui 'Sửa tay')
-    if (!(Find-Ui 'Lịch sử xuất')) {
-        Click-Ui (Wait-Moc { Find-Ui 'Hệ thống' -ButtonPrefix } 15 'Không thấy nút Hệ thống.')
-    }
     Click-Ui (Ui 'Lịch sử xuất')
     foreach ($Ext in $Outputs.Keys) {
         $null = Ui $Outputs[$Ext].Name
