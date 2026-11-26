@@ -180,6 +180,7 @@ function Test-Color([string]$Label, [int]$Frames, [string]$Hdr) {
     if ($Hdr -and ($FromFile[0] -lt $FromFile[1]+30 -or $FromFile[2] -lt $FromFile[1]+20)) {
         throw "Khung $Label chưa giữ được mẫu màu HDR sau đổi dải sáng."
     }
+    return $Output.FullName
 }
 $Firewall = "Veo-QA-WebView2-$env:GITHUB_RUN_ID"
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $Qa 'webview2'
@@ -251,7 +252,7 @@ try {
     $null = Ui 'Xuất video'
     $Probe = Join-Path $Install 'ffprobe.exe'
     $FFmpeg = Join-Path $Install 'ffmpeg.exe'
-    Test-Color 'sdr-canh-chen' 480 ''
+    $null = Test-Color 'sdr-canh-chen' 480 ''
 
     Mouse-Ui (Ui 'Vuông 1:1')
     Mouse-Ui (Ui 'Cài dựng clip mới')
@@ -277,8 +278,28 @@ try {
         Choose-File 'Chọn clip quay thô' $SourceFile
         $null = Wait-Moc { Find-Ui $Label } 60 "Không thấy dự án $Label."
         $null = Wait-Moc { Find-Ui 'Xuất video' } 150 "Clip $Label chưa dựng xong."
-        Test-Color $Label 120 'bt709'
+        $OutputPath = Test-Color $Label 120 'bt709'
     }
+
+    $HashBefore = (Get-FileHash -LiteralPath $OutputPath).Hash.ToLowerInvariant()
+    Keys '%{F4}'
+    if (!$App.WaitForExit(15000)) { throw 'Vèo chưa đóng.' }
+    $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
+    $null = Wait-Moc { Find-Ui 'Thành phẩm' } 65 'Mở lại Vèo chưa thấy thành phẩm của dự án.'
+    if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm sau khi mở lại.' }
+    $null = Ui 'Vèo 0.3.24'
+    Mouse-Ui (Ui 'Phát')
+    $null = Wait-Moc { Find-Ui 'Dừng' } 15 'Không phát được MP4 sau khi mở lại.'
+    Start-Sleep -Milliseconds 400
+    $null = Wait-Moc { Anh 'hdr-hlg-mo-lai' } 12 'Chưa chụp được lúc phát sau khi mở lại.'
+    $Reopened = @(Read-Color (Join-Path $Proof 'hdr-hlg-mo-lai.png') .42 .38)
+    $Earlier = Get-Content -Raw -LiteralPath (Join-Path $Proof 'hdr-hlg.json') | ConvertFrom-Json
+    $HashAfter = (Get-FileHash -LiteralPath $OutputPath).Hash.ToLowerInvariant()
+    if ((Compare-Color $Reopened $Earlier.phat) -gt 8 -or $HashAfter -ne $HashBefore) {
+        throw 'Màu phát hoặc MP4 đã thay đổi sau khi đóng mở Vèo.'
+    }
+    @{ mau = $Reopened; sha256 = $HashAfter; giuNguyenTep = $true } | ConvertTo-Json |
+        Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'hdr-hlg-mo-lai.json')
 } catch {
     if ($App -and !$App.HasExited) { $null = Anh 'loi' }
     $Roots = @($Data, (Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'))
