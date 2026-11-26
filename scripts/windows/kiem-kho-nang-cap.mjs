@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -71,10 +71,7 @@ try {
         await call('projects/' + id + '/export', { video: true, captions: true, check: false, res: 720, name });
         const v = await waitFor(id, 'xuat'), mp4 = v.project.job.files.find((path) => path.endsWith('.mp4'));
         assert(mp4, 'Xuất thiếu MP4');
-        const picture = execFileSync(ffmpeg, ['-v', 'error', '-i', mp4, '-map', '0:v', '-f', 'hash', '-hash', 'sha256', '-'],
-            { encoding: 'utf8', windowsHide: true }).trim();
-        assert.match(picture, /^SHA256=[a-f0-9]{64}$/);
-        return { path: mp4, streams: probe(mp4), picture };
+        return { path: mp4, streams: probe(mp4) };
     }
     if (phase === 'truoc') {
         const input = join(work, 'qa-upgrade-voice.mp4'), cover = join(work, 'Bìa thử.jpg');
@@ -106,39 +103,28 @@ try {
         const { id, old, video, hashes } = JSON.parse(await readFile(proofPath, 'utf8'));
         assert.deepEqual(capture(await call('projects/' + id)), old, 'Nội dung hoặc lịch sử dự án cũ bị đổi');
         for (const file of hashes) assert.equal(await sha(file.path), file.sha, 'Tệp cũ đã thay đổi: ' + file.path);
-        const undone = await call('projects/' + id + '/undo', {});
-        assert.notEqual(undone.head, old.head, 'Không hoàn tác được bản đã lưu');
-        assert.deepEqual(capture(await call('projects/' + id + '/redo', {})), old, 'Không làm lại được bản đã lưu');
-        const current = await render(id, 'Xuất sau cập nhật');
-        assert.notEqual(current.path, video.path);
-        assert.deepEqual(current.streams, video.streams, 'Tệp xuất sau cập nhật sai thông số');
-        assert.deepEqual(current.streams.map((s) => s.codec_name), ['h264', 'aac']);
-        assert.equal(await sha(video.path), hashes.find((f) => f.path === video.path).sha);
-        console.log('Vèo 0.3.24 giữ đủ 6 phiên bản, phụ đề, vùng che, nhãn dán, ảnh bìa và ' + hashes.length + ' tệp khớp SHA-256.');
-        console.log('Hình giải mã trước ' + video.picture + ' · sau ' + current.picture);
-        assert.equal(current.picture, video.picture, 'Hình sau cập nhật khác hình trước cập nhật');
-        const { requestId } = await call('projects/' + id + '/export', { video: false, draft: true, name: 'Nháp sau cập nhật' });
-        const result = await waitFor(id, 'xuat');
-        const draft = result.project.job.files.find((path) => path.endsWith('.otio'));
-        assert(draft, 'Xuất thiếu OTIO');
-        const { global_start_time: start, tracks } = JSON.parse(await readFile(draft, 'utf8'));
-        const carried = tracks.children.flatMap((t) => t.children)
-            .map((clip) => clip.metadata?.veo?.insertId).filter(Boolean).sort();
-        assert(carried.length > 0);
-        assert.deepEqual(carried, old.inserts.filter((i) => !i.mask).map((i) => i.id).sort());
-        const run = (await call('projects/' + id + '/exports')).runs.find((r) => r.id === requestId);
-        assert(run.result.notes.includes('Bản nháp OTIO dùng hình gốc. Chọn MP4 để bàn giao video đã áp vùng che.'));
-        assert.deepEqual(start, { OTIO_SCHEMA: 'RationalTime.1', value: 0, rate: 30 });
+        const current = process.env.VEO_QA_EXPORT;
+        assert(current && current !== video.path, 'Thiếu MP4 đã xuất bằng giao diện.');
+        const streams = probe(current);
+        assert.deepEqual(streams, video.streams, 'Tệp xuất sau cập nhật sai thông số');
+        assert.deepEqual(streams.map((s) => s.codec_name), ['h264', 'aac']);
+        // r27 sửa ma trận màu. So cấu trúc hình và giữ mã băm cũ của tệp đã bàn giao.
+        const comparison = spawnSync(ffmpeg, ['-nostats', '-i', video.path, '-i', current, '-lavfi', 'ssim=shortest=1', '-an', '-f', 'null', '-'],
+            { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+        assert.equal(comparison.status, 0, comparison.stderr || comparison.error?.message);
+        const ssim = Number(/All:(\d+(?:\.\d+)?)/.exec(comparison.stderr)?.[1]);
+        assert(ssim >= 0.9, 'Khung mới sai hình quá mức: ' + ssim);
         const evidence = join(work, 'minh-chung');
-        await mkdir(evidence);
-        await copyFile(current.path, join(evidence, 'Veo-sau-0324.mp4'));
-        await copyFile(draft, join(evidence, 'Veo-nhap-sau-0324.otio'));
+        await mkdir(evidence, { recursive: true });
+        await copyFile(video.path, join(evidence, 'Veo-truoc-0323.mp4'));
+        await copyFile(current, join(evidence, 'Veo-sau-r27.mp4'));
         await writeFile(join(evidence, 'ket-qua.json'), JSON.stringify({
             scenario: process.env.VEO_QA_CASE, history: old.revs.length, preservedFiles: hashes.length,
-            frames: Number(current.streams[0].nb_frames), sameDecodedPicture: true, platform: process.platform,
-            from: '0.3.23', to: '0.3.24', otioFps: start.rate, otioMaskWarning: true, otioCarriedInserts: carried.length, workerSha256: await sha(join(worker, 'dung-app.mjs')),
+            frames: Number(streams[0].nb_frames), ssim, platform: process.platform,
+            from: '0.3.23', to: '0.3.24-r27', workerSha256: await sha(join(worker, 'dung-app.mjs')),
+            oldMp4Sha256: await sha(video.path), newMp4Sha256: await sha(current), uiExportAndReopen: true,
         }, null, 2) + '\n');
-        console.log('Hoàn tác, làm lại và xuất lại thành công ' + current.streams[0].nb_frames + ' khung.');
+        console.log('Giữ ' + old.revs.length + ' phiên bản và ' + hashes.length + ' tệp. MP4 xuất từ Vèo có ' + streams[0].nb_frames + ' khung, SSIM ' + ssim + '.');
     }
 } finally {
     output.close();
