@@ -66,10 +66,10 @@ function Click-Ui($Item) {
     Start-Sleep -Milliseconds 220
     Mouse-Ui $Item
 }
-function Mouse-Ui($Item) {
+function Mouse-Ui($Item, [double]$X=.5) {
     $Rect = $Item.Current.BoundingRectangle
     if ($Rect.Width -le 0 -or $Rect.Height -le 0) { throw 'Điều khiển không nằm trên cửa sổ.' }
-    if (![VeoQaWindow]::SetCursorPos([int]($Rect.X + $Rect.Width / 2), [int]($Rect.Y + $Rect.Height / 2))) { throw 'Không đặt được con trỏ trên máy thử.' }
+    if (![VeoQaWindow]::SetCursorPos([int]($Rect.X + $Rect.Width*$X), [int]($Rect.Y + $Rect.Height / 2))) { throw 'Không đặt được con trỏ trên máy thử.' }
     [VeoQaWindow]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
     [VeoQaWindow]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
 }
@@ -152,16 +152,24 @@ function Source-Hdr([string]$Label, [string]$Transfer, [string]$Color) {
     return @{ path=$SourceFile; rgb=@(Read-Color $Ref .32 .32) }
 }
 
-function Test-Palette([string]$Label, $Expected, [string]$ExportLabel) {
+$ColorFailures = [System.Collections.Generic.List[string]]::new()
+function Test-Palette([string]$Label, $Expected, [string]$ExportLabel, [double]$Portion=.125) {
     $Existing = @{}
     Output-Files | ForEach-Object { $Existing[$_.FullName] = $_.LastWriteTimeUtc.Ticks }
     $null = Ui 'Đã lưu dự án'
-    $Preview = (Wait-Moc {
-        if (Anh "$Label-xem") {
-            $Sample = @(Read-Color (Join-Path $Proof "$Label-xem.png") .42 .38)
-            if ((Compare-Color $Sample $Expected) -le 8) { @{rgb=$Sample} }
-        }
-    } 60 "Khung xem $Label chưa khớp mẫu SDR.").rgb
+    Mouse-Ui (Ui 'Tua video') $Portion
+    $Screen = Join-Path $Proof "$Label-xem.png"
+    $Preview = try {
+        (Wait-Moc {
+            if (Anh "$Label-xem") {
+                $Sample = @(Read-Color $Screen .42 .38)
+                if ((Compare-Color $Sample $Expected) -le 8) { @{rgb=$Sample} }
+            }
+        } 20 "Khung xem $Label chưa khớp mẫu SDR.").rgb
+    } catch {
+        if (!(Test-Path $Screen)) { throw }
+        @(Read-Color $Screen .42 .38)
+    }
     Mouse-Ui (Ui $ExportLabel)
     Click-Ui (Ui '720p')
     Click-Ui (Ui 'Xuất 1 tệp')
@@ -176,9 +184,11 @@ function Test-Palette([string]$Label, $Expected, [string]$ExportLabel) {
         throw ('Sai thông số MP4 ' + $Label + ' ' + ($Video | ConvertTo-Json -Compress))
     }
     $Frame = Join-Path $Proof "$Label-file.png"
-    & $FFmpeg -v error -ss 0.5 -i $Output.FullName -frames:v 1 -threads 1 $Frame
+    $At = (4 * $Portion).ToString('0.###', [Globalization.CultureInfo]::InvariantCulture)
+    & $FFmpeg -v error -ss $At -i $Output.FullName -frames:v 1 -threads 1 $Frame
     if ($LASTEXITCODE -ne 0) { throw "Không đọc được khung MP4 của ca $Label." }
     $FromFile = @(Read-Color $Frame .32 .32)
+    Mouse-Ui (Ui 'Tua video') $Portion
     Mouse-Ui (Ui 'Phát')
     $null = Wait-Moc { Find-Ui 'Dừng' } 15 'Vèo chưa phát MP4.'
     Start-Sleep -Milliseconds 400
@@ -189,9 +199,9 @@ function Test-Palette([string]$Label, $Expected, [string]$ExportLabel) {
     $Info = [ordered]@{ten=$Label; chuan=$Expected; xem=$Preview; giaiMa=$FromFile; phat=$Played; stream=$Video}
     $Info | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof "$Label.json")
     Write-Host ($Info | ConvertTo-Json -Depth 6 -Compress)
-    if ((Compare-Color $Preview $Played) -gt 8 -or (Compare-Color $Preview $FromFile) -gt 8 -or
+    if ((Compare-Color $Expected $Preview) -gt 8 -or (Compare-Color $Preview $Played) -gt 8 -or (Compare-Color $Preview $FromFile) -gt 8 -or
         (Compare-Color $Expected $FromFile) -gt 8 -or (Compare-Color $Expected $Played) -gt 8) {
-        throw "Ca $Label lệch quá 8 mức RGB."
+        $ColorFailures.Add($Label)
     }
     return $Output.FullName
 }
@@ -292,8 +302,9 @@ try {
     Dien 'Tìm tư liệu' 'pq-cam'
     Mouse-Ui (Ui 'Đặt')
     $null = Ui 'Khung nhỏ'
+    $null = Anh 'chen-pq-da-dat'
     Mouse-Ui (Ui 'Tự động')
-    $null = Test-Palette 'chen-pq' $Pq.rgb 'Xuất lại'
+    $null = Test-Palette 'chen-pq' $Pq.rgb 'Xuất lại' .35
 
     Mouse-Ui (Ui 'Vuông 1:1')
     Click-Ui (Ui 'Cài dựng clip mới')
@@ -337,6 +348,7 @@ try {
     }
     @{ mau=$Reopened; sha256=$HashAfter; giuNguyenTep=$true } | ConvertTo-Json |
         Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'nen-hlg-mo-lai.json')
+    if ($ColorFailures.Count) { throw ('Lệch quá 8 mức RGB ở ca ' + ($ColorFailures -join ', ')) }
 
 } catch {
     if ($App -and !$App.HasExited) {
