@@ -1,7 +1,7 @@
 name: Kiểm storyboard và phát lại trên Vèo Mac r27
 on:
   push:
-    branches: [kiem-veo-gop-r27]
+    branches: [kiem-veo-gop-r27-arm64]
 permissions:
   contents: read
 jobs:
@@ -11,12 +11,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-15
+          - runner: macos-26
             chip: arm64
             dmg_sha: ce68a23a8449b6cce1cb6d96286627c960a5e0638e8d8880ba4b02a56e370008
-          - runner: macos-15-intel
-            chip: x64
-            dmg_sha: b16162137aa40520e13ccbbc96805c936dcd8b0ad2a3221e137a30f6eb546cf1
     timeout-minutes: 12
     permissions:
       contents: write
