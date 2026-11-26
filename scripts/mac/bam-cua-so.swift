@@ -54,11 +54,17 @@ func find(_ root: AXUIElement, _ expected: String, command: String) -> AXUIEleme
     return nil
 }
 
-func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
+func key(_ code: CGKeyCode, _ flags: CGEventFlags = [], to pid: pid_t? = nil) {
+    let source = pid == nil ? nil : CGEventSource(stateID: .privateState)
     for down in [true, false] {
-        guard let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down) else { fail("Thiếu sự kiện phím.") }
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down) else { fail("Thiếu sự kiện phím.") }
         event.flags = flags
-        event.post(tap: .cghidEventTap)
+        if let pid {
+            event.postToPid(pid)
+            Thread.sleep(forTimeInterval: 0.06)
+        } else {
+            event.post(tap: .cghidEventTap)
+        }
     }
 }
 
@@ -92,13 +98,13 @@ if command == "dump" {
     try shot.run()
     shot.waitUntilExit()
     if shot.terminationStatus != 0 { fail("Không chụp được ảnh cửa sổ.") }
-} else if command == "key" {
+} else if command == "key" || command == "key-app" {
     if !app.isActive { _ = app.activate(options: []); Thread.sleep(forTimeInterval: 0.2) }
     let flags: CGEventFlags = args.count >= 4 && args[3] == "cmd" ? .maskCommand : []
     guard let code = UInt16(value) else { fail("Sai mã phím.") }
-    key(code, flags)
+    key(code, flags, to: command == "key-app" ? pid : nil)
 } else {
-    guard ["wait", "click", "click-text", "click-file", "space", "click-app", "paste-app"].contains(command) else {
+    guard ["wait", "click", "click-text", "click-file", "space", "click-app", "paste-app", "enter-app"].contains(command) else {
         fail("Thao tác thử không hợp lệ.")
     }
     let until = Date().addingTimeInterval(args.count >= 4 ? Double(args[3]) ?? 15 : 15)
@@ -108,24 +114,16 @@ if command == "dump" {
         if matched == nil { Thread.sleep(forTimeInterval: 0.25) }
     } while matched == nil && Date() < until
     guard let element = matched else { fail("Không thấy điều khiển \(value).") }
-    if command == "paste-app" {
-        guard AXUIElementSetAttributeValue(element, "AXFocused" as CFString, kCFBooleanTrue) == .success,
-              let source = CGEventSource(stateID: .privateState) else { fail("Không đặt được tiêu điểm ở \(value).") }
-        Thread.sleep(forTimeInterval: 0.25)
-        for down in [true, false] {
-            guard let event = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: down) else { fail("Thiếu sự kiện phím dán.") }
-            event.flags = .maskCommand
-            event.postToPid(pid)
-            Thread.sleep(forTimeInterval: 0.06)
-        }
-        exit(0)
-    }
-    if command == "space" {
+    if ["paste-app", "enter-app", "space"].contains(command) {
         guard AXUIElementSetAttributeValue(element, "AXFocused" as CFString, kCFBooleanTrue) == .success else {
             fail("Không đặt được tiêu điểm ở \(value).")
         }
         Thread.sleep(forTimeInterval: 0.25)
-        key(49)
+        switch command {
+        case "paste-app": key(9, .maskCommand, to: pid)
+        case "enter-app": key(36, to: pid)
+        default: key(49)
+        }
         exit(0)
     }
     if command != "wait" {

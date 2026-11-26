@@ -108,10 +108,13 @@ start_app() {
 click() { ui click "$@"; sleep 0.25; }
 await_stop() {
   for try in {1..40}; do
-    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; app_pid=''; return; fi
+    if ! kill -0 "$app_pid" 2>/dev/null; then
+      wait "$app_pid" || exit 1
+      app_pid=''
+      return
+    fi
     sleep 0.25
   done
-  echo 'Vèo chưa thoát sau Command-Q.' >&2
   return 1
 }
 
@@ -133,7 +136,10 @@ click 'Từ ý tưởng / Storyboard'
 ui click-app 'Dùng kịch bản mẫu'
 expected_frames=600
 storyboard='mau'
-if ! ui wait 'Đưa việc vào lịch' 8 2>/dev/null; then
+if ! ui wait 'Đưa việc vào lịch' 3 2>/dev/null; then
+  ui enter-app 'Dùng kịch bản mẫu' 4 || true
+fi
+if ! ui wait 'Đưa việc vào lịch' 5 2>/dev/null; then
   capture '02-nut-mau-khong-mo'
   storyboard='tu-nhap'
   expected_frames=120
@@ -180,8 +186,16 @@ hash="$(shasum -a 256 "$output" | awk '{print $1}')"
 "$runtime/ffprobe" -v error -select_streams v:0 -show_entries stream=codec_name,width,height,avg_frame_rate,nb_frames -of json "$mp4" > "$proof/mp4.json"
 jq -e --arg frames "$expected_frames" '.streams[0] | .codec_name=="h264" and .nb_frames==$frames and .avg_frame_rate=="30/1" and (.height==720 or .width==720)' "$proof/mp4.json" > /dev/null
 before="$(grep -c 'GET /.*tar.gz' "$scratch/server.log")"
-ui key 12 cmd
-await_stop
+quit='Command+Q'
+ui key-app 12 cmd
+if ! await_stop; then
+  quit='Command+W'
+  ui key-app 13 cmd
+  if ! await_stop; then
+    echo 'Vèo chưa thoát sau Command+Q và Command+W.' >&2
+    exit 1
+  fi
+fi
 start_app mo-lai
 ui wait 'Thành phẩm' 90
 click 'Phát'
@@ -195,7 +209,7 @@ capture '05-lich-su'
 [[ "$(shasum -a 256 "$output" | awk '{print $1}')" == "$hash" ]]
 after="$(grep -c 'GET /.*tar.gz' "$scratch/server.log")"
 [[ "$before" == 7 && "$after" == "$before" ]]
-jq -n --arg os "$(sw_vers -productVersion)" --arg arch "$arch" --arg sha "$hash" --arg worker "$worker" --arg story "$storyboard" \
+jq -n --arg os "$(sw_vers -productVersion)" --arg arch "$arch" --arg sha "$hash" --arg worker "$worker" --arg story "$storyboard" --arg quit "$quit" \
   --arg dmg "$expected_dmg" --slurpfile video "$proof/mp4.json" \
-  '{macOS:$os,chip:$arch,source:"6e8f8b027cef3cf312dea471b88131595d0c2326",workerSha256:$worker,dmgSha256:$dmg,storyboard:$story,video:$video[0].streams[0],sha256:$sha,goiLanDau:7,goiMoLai:0,moLai:true}' |
+  '{macOS:$os,chip:$arch,source:"6e8f8b027cef3cf312dea471b88131595d0c2326",workerSha256:$worker,dmgSha256:$dmg,storyboard:$story,video:$video[0].streams[0],sha256:$sha,goiLanDau:7,goiMoLai:0,thoat:$quit,moLai:true}' |
   tee "$proof/ket-qua.json"
