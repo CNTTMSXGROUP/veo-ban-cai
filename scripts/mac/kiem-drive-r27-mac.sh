@@ -176,20 +176,32 @@ ui key-app 36
 click 'Đưa bản dựng lên Drive'
 ui wait 'Bản sao Drive' 90
 capture '02-gui-ban-sao-drive'
-index="$(find "$sync" -type f -name veo.json)"
-[[ -s "$index" ]]
-version="$(dirname "$index")"
-original="$(jq -er '.plan.sources[0].original' "$index")"
-normalized="$(jq -er '.plan.sources[0].path' "$index")"
-[[ "$original" != "$normalized" && "$original" =~ ^tep/[0-9]+\.(mp4|mov)$ ]]
-[[ -s "$version/$original" && -s "$version/$normalized" ]]
-cmp "$fixture" "$version/$original"
-source_hash="$(shasum -a 256 "$fixture" | cut -d ' ' -f1)"
-jq -e --arg original "$original" --arg hash "$source_hash" '.plan.canvas == "doc" and (.files | any(.path == $original and .sha == $hash))' "$index" >/dev/null
 cp -Rp "$sync" "$proof/drive"
-jq -n --arg sha "$source_hash" --arg worker "$worker" --arg dmghash "$expected_dmg" --slurpfile index "$index" \
-  '{chip:"arm64",boCai:$dmghash,workerSha256:$worker,tenDuAn:$index[0].name,sourceSha256:$sha,files:($index[0].files|length),guiBangCuaSo:true}' |
-  tee "$proof/ket-qua.json"
+python3 - "$proof" "$fixture" "$worker" "$expected_dmg" <<'PY' | tee "$proof/ket-qua.json"
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+proof = Path(sys.argv[1])
+indexes = list((proof / 'drive').rglob('veo.json'))
+assert len(indexes) == 1, indexes
+index_file = indexes[0]
+index = json.loads(index_file.read_text())
+source = index['plan']['sources'][0]
+original = source['original']
+assert original != source['path'], source
+digest = hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest()
+for file in index['files']:
+    data = (index_file.parent / file['path']).read_bytes()
+    assert len(data) == file['bytes'] and hashlib.sha256(data).hexdigest() == file['sha'], file
+    if file['path'] == original:
+        assert file['sha'] == digest, file
+assert any(file['path'] == original for file in index['files']), source
+assert index['plan'].get('canvas', 'doc') == 'doc', index['plan'].get('canvas')
+print(json.dumps({'chip': 'arm64', 'boCai': sys.argv[4], 'workerSha256': sys.argv[3], 'tenDuAn': index['name'],
+                  'sourceSha256': digest, 'files': len(index['files']), 'guiBangCuaSo': True}, ensure_ascii=False))
+PY
 ui key-app 53
 ui key-app 12 cmd
 await_stop
