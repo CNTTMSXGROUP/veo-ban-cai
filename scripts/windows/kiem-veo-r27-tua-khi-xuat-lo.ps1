@@ -202,6 +202,9 @@ try {
     $Filter = "hue=s=0,drawbox=x=0:y=0:w=iw:h=ih/2:color=0x00ff00:t=fill:enable='lt(t,50)',drawbox=x=0:y=0:w=iw:h=ih/2:color=0x0000ff:t=fill:enable='gte(t,50)'"
     & $FFmpeg -v error -f lavfi -i 'testsrc2=s=640x360:r=30:d=120' -f lavfi -i 'sine=f=431:r=48000:d=120' -vf $Filter -t 120 -c:v libx264 -threads 2 -preset ultrafast -c:a aac $Source
     if ($LASTEXITCODE -ne 0) { throw 'Không tạo được clip thử 120 giây.' }
+    $Short = Join-Path $Qa 'mau-lo-45-giay.mp4'
+    & $FFmpeg -v error -i $Source -t 45 -c copy $Short
+    if ($LASTEXITCODE -ne 0) { throw 'Không cắt được mẫu 45 giây cho lô xuất.' }
 
     Mouse-Ui (Ui 'Ngang 16:9')
     Click-Ui (Ui 'Cài dựng clip mới')
@@ -214,7 +217,7 @@ try {
     Click-Ui (Ui 'Xong')
     foreach ($I in 0..3) {
         $Path = if ($I -eq 0) { $Source } else { Join-Path $Qa "QA Tua $I.mp4" }
-        if ($I -ne 0) { Copy-Item -LiteralPath $Source -Destination $Path }
+        if ($I -ne 0) { Copy-Item -LiteralPath $Short -Destination $Path }
         Mouse-Ui (Ui 'Thả clip quay thô')
         Choose-File 'Chọn clip quay thô' $Path
         $Row = Wait-Moc { Find-Ui "Xem QA Tua $I" -Focusable } 60 "Chưa thấy dự án QA Tua $I."
@@ -230,6 +233,7 @@ try {
 
     Mouse-Ui (Ui 'Xem QA Tua 0')
     Click-Ui (Ui 'Sửa tay')
+    Click-Ui (Ui 'Xem rộng')
     $BeforeWarm = Proxy-Count
     $null = Seek-Frame $true
     $BlueReady = Wait-Moc { if (($N = Proxy-Count) -gt $BeforeWarm) { $N } } 35 'Chưa chuẩn bị được đoạn xanh lam.'
@@ -250,6 +254,7 @@ try {
     Click-Ui (Ui 'Xuất 3 tệp')
     $null = Wait-Moc { Running-Exports } 30 'Không thấy tiến trình FFmpeg đang xuất.'
     Click-Ui (Ui 'Sửa tay')
+    Click-Ui (Ui 'Xem rộng')
     $BeforeCount = Running-Exports
     $Busy = Seek-Sample
     $AfterCount = Running-Exports
@@ -271,7 +276,7 @@ try {
     $Files = @(foreach ($Output in $Outputs) {
         $Streams = (& $Probe -v error -show_entries 'stream=codec_name,width,height,nb_frames' -of json $Output.FullName | ConvertFrom-Json).streams
         $Video = $Streams | Where-Object codec_name -eq h264
-        if ($LASTEXITCODE -ne 0 -or $Video.width -ne 1280 -or $Video.height -ne 720 -or $Video.nb_frames -ne '3600' -or 'aac' -notin $Streams.codec_name) {
+        if ($LASTEXITCODE -ne 0 -or $Video.width -ne 1280 -or $Video.height -ne 720 -or $Video.nb_frames -ne '1350' -or 'aac' -notin $Streams.codec_name) {
             throw "MP4 $($Output.Name) có sai định dạng hoặc thời lượng."
         }
         [ordered]@{ name=$Output.Name; sha256=(Get-FileHash -LiteralPath $Output.FullName).Hash.ToLowerInvariant(); video=$Video; bytes=$Output.Length }
@@ -292,6 +297,8 @@ try {
     foreach ($I in 0..2) {
         if ((Get-FileHash -LiteralPath $Outputs[$I].FullName).Hash -ne $Files[$I].sha256) { throw 'MP4 đổi sau khi mở lại.' }
     }
+    $Example = $Outputs | Where-Object Name -match '^QA[ _-]Tua[ _-]1(\D|$)'
+    Copy-Item -LiteralPath $Example.FullName -Destination (Join-Path $Proof 'thanh-pham.mp4')
     [ordered]@{
         source=$env:VEO_QA_SOURCE; workerSha256=$env:VEO_QA_WORKER_SHA; system=$env:VEO_QA_OS
         machineRamBytes=(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
