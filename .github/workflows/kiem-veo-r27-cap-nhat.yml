@@ -24,7 +24,7 @@ jobs:
           New-Item -ItemType Directory -Path $Qa | Out-Null
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
           $Expected = @{
-            'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup.exe' = '23daa914dd7d7d67d69f74974c0a65b3b8f5908ef01dde7fc742dccc5cfb818d'
+            'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup-r27-key.exe' = '6b868567213705702a1b270dcc054e190048ffaec3317f16c4ddc620a21e0c63'
             'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe' = 'c89212dd71f1bb2c549c7142d9af20d62b0b474a2328b272abe852517c14fa84'
             'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe.sig' = 'c35d03162806d85113cfb66154ccb0381a069b44d8df0ab3682669d0df8ab7ec'
             'qa-upgrade-voice.mp4' = '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71'
@@ -38,6 +38,7 @@ jobs:
           foreach ($Name in $Expected.Keys) {
             if ((Get-FileHash (Join-Path $Qa $Name)).Hash -ne $Expected[$Name]) { throw "Sai SHA-256 của $Name." }
           }
+          Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup-r27-key.exe') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup.exe')
           Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe')
           Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe.sig') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe.sig')
       - name: Tạo kho cũ, kiểm từ chối gói sai rồi tự cập nhật
