@@ -29,32 +29,32 @@ jobs:
           for release in "$tag" "$win"; do
             test "$(gh release view "$release" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
           done
-          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'Veo-QA-mac-x64_0.3.24-r12.dmg' --pattern 'ffmpeg-darwin-x64-8a804cebf686.tar.gz'
-          gh release download "$win" -R "$GITHUB_REPOSITORY" --pattern 'veo-qa-e1d2e92-giu-lan-xuat.mjs'
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'Veo-QA-mac-x64_0.3.24-r13.dmg' --pattern 'ffmpeg-darwin-x64-8a804cebf686.tar.gz'
+          gh release download "$win" -R "$GITHUB_REPOSITORY" --pattern 'veo-qa-cbedddf-giu-lan-xuat.mjs'
           curl -fsSL --retry 2 --max-time 110 "https://github.com/$GITHUB_REPOSITORY/releases/download/phan-chay/node-darwin-x64-4e7afae035ab.tar.gz" -o node-darwin-x64-4e7afae035ab.tar.gz
           curl -fsSL --retry 2 --max-time 110 "https://github.com/$GITHUB_REPOSITORY/releases/download/phan-chay/ve-chu-darwin-x64-37861a187c68.tar.gz" -o ve-chu-darwin-x64-37861a187c68.tar.gz
           curl -fsSL --retry 2 "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/windows/kiem-cho-chep-exfat.py" -o kiem-cho-chep-exfat.py
           shasum -a 256 -c <<'CHECKSUMS'
-          e10a2a8d2ebea4835743f11580493585f62d286e6b9181fbc9c7a1a0e7a48a83  Veo-QA-mac-x64_0.3.24-r12.dmg
+          8789860cec5cefe74414c6729cf112af27e35271c9deab8a2e39addeff90631b  Veo-QA-mac-x64_0.3.24-r13.dmg
           8a804cebf686b809a5ea0d6f5f02aa34b7ca5b6dcef2b890b26bbd0d8ef1d63f  ffmpeg-darwin-x64-8a804cebf686.tar.gz
           37861a187c689d33f571bb7cf350ce641615a2974b13f0794e110068af7c00c7  ve-chu-darwin-x64-37861a187c68.tar.gz
           4e7afae035ab35edbea161ec518a1a13a4c7658573a29406dc5741934e8ad53e  node-darwin-x64-4e7afae035ab.tar.gz
-          665e63cc4345cafb4451b67b74110ab3ad276365867b1eedccdff18690dd5654  veo-qa-e1d2e92-giu-lan-xuat.mjs
+          46ec9ba9ea45066d82b2ccf0d912d3fe246cbdcd598cdd6e25dd9dd5749854cd  veo-qa-cbedddf-giu-lan-xuat.mjs
           CHECKSUMS
-          mv veo-qa-e1d2e92-giu-lan-xuat.mjs giu-lan-xuat.mjs
+          mv veo-qa-cbedddf-giu-lan-xuat.mjs giu-lan-xuat.mjs
           tar -xzf node-darwin-x64-4e7afae035ab.tar.gz -C runtime
           tar -xzf ffmpeg-darwin-x64-8a804cebf686.tar.gz -C runtime
           tar -xzf ve-chu-darwin-x64-37861a187c68.tar.gz -C runtime
           test "$("$qa/runtime/node" -p process.arch)" = x64
           trap 'hdiutil detach "$qa/dmg" >/dev/null 2>&1 || true; hdiutil detach "$qa/exfat" >/dev/null 2>&1 || true' EXIT
-          hdiutil attach Veo-QA-mac-x64_0.3.24-r12.dmg -mountpoint "$qa/dmg" -readonly -nobrowse -noautoopen
+          hdiutil attach Veo-QA-mac-x64_0.3.24-r13.dmg -mountpoint "$qa/dmg" -readonly -nobrowse -noautoopen
           app='install/Veo QA Intel 26.app'
           ditto 'dmg/Veo QA Intel 26.app' "$app"
           hdiutil detach "$qa/dmg"
           codesign --verify --deep --strict "$app"
           lipo "$app/Contents/MacOS/msx-phong-dung" -verify_arch x86_64
           worker="$app/Contents/Resources/worker/dung-app.mjs"
-          printf '%s  %s\n' 'e4870a54fab985deda4b50369d29813a598650401c70260312cdc4a059665ecd' "$worker" | shasum -a 256 -c
+          printf '%s  %s\n' '9580b15420f5a580f181fc23228d7d35269c7ced1b1a6a3a37583d4fc57eb0d7' "$worker" | shasum -a 256 -c
           hdiutil create -quiet -size 384m -type SPARSE -fs ExFAT -volname VEO_QA kiem.sparseimage
           hdiutil attach kiem.sparseimage -mountpoint "$qa/exfat" -nobrowse -noautoopen
           diskutil info "$qa/exfat" | grep -F 'File System Personality:' | grep -i exfat
@@ -73,7 +73,7 @@ jobs:
       - name: Lưu kết quả khôi phục
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-intel-cho-chep-r12
+          name: veo-intel-cho-chep-r13
           path: ${{ runner.temp }}/veo-intel-exfat/kiem-app-intel-x64/ket-qua.json
           if-no-files-found: error
           retention-days: 30
