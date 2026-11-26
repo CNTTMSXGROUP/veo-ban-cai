@@ -220,7 +220,7 @@ try {
     Click-Ui (Ui 'Đưa tệp vào')
     Choose-File 'Chọn ảnh hoặc clip' $Insert
     Dien 'Tìm tư liệu' 'May B'
-    $null = Ui 'May B.mov'
+    $null = Ui 'Gắn nhãn cho May B.mov'
     Mouse-Ui (Ui 'Đặt')
     $null = Ui 'Khung nhỏ'
     $null = Wait-Moc { Anh '01-dat-canh-chen' } 12 'Chưa chụp được cảnh chèn.'
@@ -262,7 +262,7 @@ try {
     if (!$FcpSource -or ([uri]$FcpSource.'media-rep'.src).LocalPath -ne $Insert) { throw 'Cảnh chèn FCPXML trỏ sai nguồn.' }
     $OtioFile = Get-Content -LiteralPath $Outputs.otio.FullName -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable -Depth 100
     if ($OtioFile.OTIO_SCHEMA -ne 'Timeline.1' -or $OtioFile.tracks.children.Count -lt 2) { throw 'OTIO thiếu timeline hoặc hàng cảnh chèn.' }
-    $OtioPaths = @($OtioFile.tracks.children.children | Where-Object { $_.OTIO_SCHEMA -eq 'Clip.2' } |
+    $OtioPaths = @($OtioFile.tracks.children | ForEach-Object { $_.children } | Where-Object { $_.OTIO_SCHEMA -eq 'Clip.2' } |
         ForEach-Object { ([uri]$_.media_references.DEFAULT_MEDIA.target_url).LocalPath } | Sort-Object -Unique)
     foreach ($Ref in @($Main, $Insert)) {
         if ($Ref -notin $FcpPaths -or $Ref -notin $OtioPaths -or !(Test-Path -LiteralPath $Ref)) { throw "Mất liên kết nguồn: $Ref" }
