@@ -25,8 +25,8 @@ jobs:
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
           $Expected = @{
             'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup.exe' = '23daa914dd7d7d67d69f74974c0a65b3b8f5908ef01dde7fc742dccc5cfb818d'
-            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r14.exe' = '48a9bfa0d5f2a98cc976444054b38e3f6df8bc20c9540cccc5016be7f92dfc11'
-            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r14.exe.sig' = '1d17fb0f7e8154fef7582690f0d8101c5854cbfa4bae5e9f75650025249e3d88'
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r15.exe' = '6d6b6a1de627a5cc73fa8ad97885fb4e12ff4ede919a4991027185399bc1ba89'
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r15.exe.sig' = '228eaaadd0eb6225cf9f0908e3ce203e862183ab675a46db6828ae71536734e7'
             'qa-upgrade-voice.mp4' = '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71'
           }
           $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
@@ -38,8 +38,8 @@ jobs:
           foreach ($Name in $Expected.Keys) {
             if ((Get-FileHash (Join-Path $Qa $Name)).Hash -ne $Expected[$Name]) { throw "Sai SHA-256 của $Name." }
           }
-          Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r14.exe') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe')
-          Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r14.exe.sig') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe.sig')
+          Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r15.exe') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe')
+          Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r15.exe.sig') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe.sig')
       - name: Tạo kho cũ, kiểm từ chối gói sai rồi tự cập nhật
         shell: pwsh
         env:
@@ -67,7 +67,7 @@ jobs:
       - name: Lưu bằng chứng cập nhật và MP4 tổng hợp
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-win-cap-nhat-r14-${{ matrix.ca }}
+          name: veo-win-cap-nhat-r15-${{ matrix.ca }}
           path: ${{ runner.temp }}/veo-qa-signed/minh-chung
           if-no-files-found: error
           retention-days: 30

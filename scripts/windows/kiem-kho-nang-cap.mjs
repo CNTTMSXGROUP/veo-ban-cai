@@ -117,11 +117,17 @@ try {
         console.log('Vèo 0.3.24 giữ đủ 6 phiên bản, phụ đề, vùng che, nhãn dán, ảnh bìa và ' + hashes.length + ' tệp khớp SHA-256.');
         console.log('Hình giải mã trước ' + video.picture + ' · sau ' + current.picture);
         assert.equal(current.picture, video.picture, 'Hình sau cập nhật khác hình trước cập nhật');
-        await call('projects/' + id + '/export', { video: false, draft: true, name: 'Nháp sau cập nhật' });
+        const { requestId } = await call('projects/' + id + '/export', { video: false, draft: true, name: 'Nháp sau cập nhật' });
         const result = await waitFor(id, 'xuat');
         const draft = result.project.job.files.find((path) => path.endsWith('.otio'));
         assert(draft, 'Xuất thiếu OTIO');
-        const { global_start_time: start } = JSON.parse(await readFile(draft, 'utf8'));
+        const { global_start_time: start, tracks } = JSON.parse(await readFile(draft, 'utf8'));
+        const carried = tracks.children.flatMap((t) => t.children)
+            .map((clip) => clip.metadata?.veo?.insertId).filter(Boolean).sort();
+        assert(carried.length > 0);
+        assert.deepEqual(carried, old.inserts.filter((i) => !i.mask).map((i) => i.id).sort());
+        const run = (await call('projects/' + id + '/exports')).runs.find((r) => r.id === requestId);
+        assert(run.result.notes.includes('Bản nháp OTIO dùng hình gốc. Chọn MP4 để bàn giao video đã áp vùng che.'));
         assert.deepEqual(start, { OTIO_SCHEMA: 'RationalTime.1', value: 0, rate: 30 });
         const evidence = join(work, 'minh-chung');
         await mkdir(evidence);
@@ -130,7 +136,7 @@ try {
         await writeFile(join(evidence, 'ket-qua.json'), JSON.stringify({
             scenario: process.env.VEO_QA_CASE, history: old.revs.length, preservedFiles: hashes.length,
             frames: Number(current.streams[0].nb_frames), sameDecodedPicture: true, platform: process.platform,
-            from: '0.3.23', to: '0.3.24', otioFps: start.rate, workerSha256: await sha(join(worker, 'dung-app.mjs')),
+            from: '0.3.23', to: '0.3.24', otioFps: start.rate, otioMaskWarning: true, otioCarriedInserts: carried.length, workerSha256: await sha(join(worker, 'dung-app.mjs')),
         }, null, 2) + '\n');
         console.log('Hoàn tác, làm lại và xuất lại thành công ' + current.streams[0].nb_frames + ' khung.');
     }
