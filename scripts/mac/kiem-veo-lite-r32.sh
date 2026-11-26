@@ -6,7 +6,7 @@ dien() {
   ui replace-app "$1"
   sleep 0.25
 }
-chon() { click "$1"; thay "$2" 5; click "$2"; }
+chon() { click "$1"; thay "$2" 5; ui click-text "$2"; sleep 0.25; }
 thay() { ui wait "$1" "${2:-24}"; }
 thay_gia() {
   thay 'Duyệt nội dung gửi Google Cloud'
@@ -53,7 +53,8 @@ click 'Model tạo clip'
 thay 'Veo 3.1 Lite · Thử nghiệm'
 ui dump 'menu model' > "$proof/cay-tro-nang-menu-model.txt"
 capture '00-menu-model-mac'
-click 'Veo 3.1 Fast'
+ui click-text 'Veo 3.1 Fast'
+sleep 0.25
 for name in A B; do
   click 'Nhập ảnh'
   ui click-text 'Documents'
