@@ -23,8 +23,8 @@ jobs:
           $Draft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
           if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Thiếu bản nháp kiểm thử.' }
           $Files = @{
-            'Veo-QA-Windows-exFAT_0.3.24_x64-setup.exe' = '454ad3c8499e5d3e090ef9acd8f0a16dc2c91db1156d067c246e15bb2e93281b'
-            'veo-qa-windows-exfat-smoke-r3.ps1' = '1bb4c13061347466214bbb3937c01d8159cbf09f8d40c0cca9001af4e3742a96'
+            'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r2.exe' = '45c9743424ea5018903c88b8bc3007bc6e8dd7f2623283d3b0d2b635c49c8389'
+            'veo-qa-windows-exfat-smoke-r4.ps1' = '53877f83be1a049aee0338789959c5cf3d74403cdefb2e5651b79940522fe048'
             'render-hyperframes-win32-x64-2d1477237512.tar.gz' = '2d1477237512e6872bb98096e39563a3ad16a04a8f7bb1d25112c7df1274b208'
           }
           $Download = @('release','download',$Tag,'-R',$env:GITHUB_REPOSITORY,'--dir',$Dir)
@@ -39,7 +39,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa-exfat'
-          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup.exe'
+          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r2.exe'
           $Install = Join-Path $Dir 'Vèo thử, [Windows]'
           $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
@@ -67,5 +67,5 @@ jobs:
             if (!$Volume.DriveLetter -or $Volume.FileSystem -ne 'exFAT') { throw 'Ảnh đĩa thử chưa có ổ exFAT.' }
             $Os = Get-CimInstance Win32_OperatingSystem
             Write-Host "$($Os.Caption) $($Os.OSArchitecture) $($Os.Version) · $($Volume.FileSystem) $($Volume.Size) byte"
-            & (Join-Path $Dir 'veo-qa-windows-exfat-smoke-r3.ps1') -InstallDir $Install -Version '0.3.24' -OpenApp -ExFatRoot "$($Volume.DriveLetter):\"
+            & (Join-Path $Dir 'veo-qa-windows-exfat-smoke-r4.ps1') -InstallDir $Install -Version '0.3.24' -OpenApp -ExFatRoot "$($Volume.DriveLetter):\"
           } finally { Dismount-DiskImage -ImagePath $Vhd | Out-Null }
