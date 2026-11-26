@@ -134,16 +134,13 @@ ui click-text 'Documents'
 ui click-file 'Veo kho Mac thu*'
 click 'Open'
 ui wait 'Đã lưu dự án' 150
-click 'Sửa tay'
-click 'Hiệu ứng hình'
-click 'Cả video'
-click 'Đen trắng'
-ui wait 'Cường độ mẫu màu' 15
-capture '01-mau-ban-cu'
-click 'Hoàn tác*'
-click 'Làm lại*'
-ui wait 'Cường độ mẫu màu' 12
-click 'Tự động'
+ui enter-app 'Sửa tay' 20
+ui enter-app 'Thêm mốc*' 20
+sleep .6
+capture '01-moc-ban-cu'
+ui enter-app 'Hoàn tác*' 12
+ui enter-app 'Làm lại*' 12
+ui enter-app 'Tự động' 12
 click 'Xuất video'
 click '720p'
 click 'Xuất 1 tệp'
@@ -157,6 +154,7 @@ quit_app
 snapshot > "$proof/lich-su-truoc.txt"
 so_ban="$(sqlite3 -readonly "$db" 'SELECT count(*) FROM versions;')"
 [[ "$so_ban" -ge 2 ]]
+grep -Fq 'Thêm mốc' "$proof/lich-su-truoc.txt"
 sqlite3 -readonly "$db" ".backup \"$scratch/ban-sao/phong-dung.db\""
 [[ "$(sqlite3 -readonly "$scratch/ban-sao/phong-dung.db" 'PRAGMA integrity_check;')" == ok ]]
 ditto "$data/du-an" "$scratch/ban-sao/du-an"

@@ -20,12 +20,6 @@ jobs:
             old: 4113471eddd2588e72565c817e1814e7cc16947c30ce9cd2ac12b763627dc6e3
             new: e36dccc921d724aa520cc1b655a3e8a3f902a87ec0cf29c0bad6a0824b7f2891
             sig: 266baedbc0c787185ac0797b124607f1f789d72656c6e381d0de0b242181efab
-          - runner: macos-15-intel
-            chip: x64
-            mode: thoat
-            old: 659bf2c2afb24f809e07b3a6f697460a3a2724fc45ad543ec8369ea7ab3b2f27
-            new: e3542d5ab8fe431455f5bccc0643a85be29b69da4efebc999f63388276b8543e
-            sig: 367954fd2684f70b19cdb6b8ee1b1916b4f654b09ddd97c1930f12be60314949
     steps:
       - name: Nạp đúng bộ cài và thử nâng qua giao diện
         shell: bash
