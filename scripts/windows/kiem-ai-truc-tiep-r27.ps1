@@ -135,7 +135,8 @@ function Chon([string]$Name, [int]$Index, [string]$OptionName) {
 function Mo-Nguon {
     $Settings = Wait-Moc { (Find-Ui 'Kết nối nguồn AI' -Focusable) ?? (Find-Ui 'Nguồn AI dựng bản đầu' -ButtonPrefix -Focusable) } 20 'Không thấy lối mở Hệ thống.'
     Click-Ui $Settings
-    (Ui 'Nguồn AI của dự án').SetFocus()
+    $ProjectSettings = Wait-Moc { Find-Ui 'Nguồn AI của dự án' -Focusable } 15 'Không thấy mục nguồn riêng của dự án.'
+    $ProjectSettings.SetFocus()
     Keys '{ENTER}'
     Chon 'Tác vụ của dự án' 1 'Nhắn sửa, gợi ý tít và dịch lời'
 }
@@ -196,7 +197,7 @@ $Codex = Join-Path $CliDir 'codex.exe'
 $Agy = Join-Path $CliDir 'agy.exe'
 $Compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
 if (!(Test-Path $Compiler)) { throw 'Máy thử thiếu trình dịch C# có sẵn của Windows.' }
-& $Compiler /nologo /target:exe /platform:x64 /reference:System.Web.Extensions.dll "/out:$Codex" (Join-Path $Qa 'cli-thu-veo.cs')
+& $Compiler /nologo /codepage:65001 /target:exe /platform:x64 /reference:System.Web.Extensions.dll "/out:$Codex" (Join-Path $Qa 'cli-thu-veo.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Không dựng được CLI giả lập.' }
 Copy-Item -LiteralPath $Codex -Destination $Agy
 $env:DUNG_CODEX = $Codex
