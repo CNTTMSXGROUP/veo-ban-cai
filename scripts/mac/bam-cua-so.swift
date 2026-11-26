@@ -98,7 +98,7 @@ if command == "dump" {
     guard let code = UInt16(value) else { fail("Sai mã phím.") }
     key(code, flags)
 } else {
-    guard ["wait", "click", "click-text", "click-file"].contains(command) else { fail("Thao tác thử không hợp lệ.") }
+    guard ["wait", "click", "click-text", "click-file", "space"].contains(command) else { fail("Thao tác thử không hợp lệ.") }
     let until = Date().addingTimeInterval(args.count >= 4 ? Double(args[3]) ?? 15 : 15)
     var matched: AXUIElement?
     repeat {
@@ -106,6 +106,14 @@ if command == "dump" {
         if matched == nil { Thread.sleep(forTimeInterval: 0.25) }
     } while matched == nil && Date() < until
     guard let element = matched else { fail("Không thấy điều khiển \(value).") }
+    if command == "space" {
+        guard AXUIElementSetAttributeValue(element, "AXFocused" as CFString, kCFBooleanTrue) == .success else {
+            fail("Không đặt được tiêu điểm ở \(value).")
+        }
+        Thread.sleep(forTimeInterval: 0.25)
+        key(49)
+        exit(0)
+    }
     if command != "wait" {
         if !app.isActive { _ = app.activate(options: []); Thread.sleep(forTimeInterval: 0.2) }
         guard let box = rect(element) else { fail("Không thấy vị trí \(value).") }
