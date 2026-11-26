@@ -171,6 +171,14 @@ try {
     Write-Host 'Bấm Cập nhật đã cài 0.3.24 vào thư mục mặc định và tự mở lại Vèo.'
   }
   $null = Wait-Moc { Find-Ui $NewApp 'Tiếp tục với Google' } 60 'Bản 0.3.24 chưa mở màn đăng nhập.'
+  $Expected = @{
+    'worker/dung-app.mjs' = 'ef6a14085397580bb9d748fea6c4ed122e9b2b955c59f57172086b73e0be16b1'
+    'licenses/LIBVPX-LICENSE.txt' = '8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615'
+    'licenses/LIBVPX-PATENTS.txt' = 'cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c'
+  }
+  foreach ($Asset in $Expected.Keys) {
+    if ((Get-FileHash -LiteralPath (Join-Path $Install $Asset) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Expected[$Asset]) { throw "Sai tệp trong gói cập nhật: $Asset" }
+  }
   $null = Wait-Moc { !(Test-Path -LiteralPath $Ready) } 10 'Bản mới chưa dọn bộ cài đã dùng.'
   if ((Get-FileHash -LiteralPath $NextCache).Hash -ne $NextHash) { throw 'Bản mới đã đổi bộ đệm của phiên bản khác.' }
   Write-Host "Bản mới dọn bộ cài đã dùng $((Get-Item -LiteralPath $New).Length) byte và giữ bộ đệm của phiên bản khác."

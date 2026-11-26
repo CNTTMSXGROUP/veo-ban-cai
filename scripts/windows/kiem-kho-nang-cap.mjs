@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -71,7 +71,10 @@ try {
         await call('projects/' + id + '/export', { video: true, captions: true, check: false, res: 720, name });
         const v = await waitFor(id, 'xuat'), mp4 = v.project.job.files.find((path) => path.endsWith('.mp4'));
         assert(mp4, 'Xuất thiếu MP4');
-        return { path: mp4, streams: probe(mp4) };
+        const picture = execFileSync(ffmpeg, ['-v', 'error', '-i', mp4, '-map', '0:v', '-f', 'hash', '-hash', 'sha256', '-'],
+            { encoding: 'utf8', windowsHide: true }).trim();
+        assert.match(picture, /^SHA256=[a-f0-9]{64}$/);
+        return { path: mp4, streams: probe(mp4), picture };
     }
     if (phase === 'truoc') {
         const input = join(work, 'qa-upgrade-voice.mp4'), cover = join(work, 'Bìa thử.jpg');
@@ -112,6 +115,16 @@ try {
         assert.deepEqual(current.streams.map((s) => s.codec_name), ['h264', 'aac']);
         assert.equal(await sha(video.path), hashes.find((f) => f.path === video.path).sha);
         console.log('Vèo 0.3.24 giữ đủ 6 phiên bản, phụ đề, vùng che, nhãn dán, ảnh bìa và ' + hashes.length + ' tệp khớp SHA-256.');
+        console.log('Hình giải mã trước ' + video.picture + ' · sau ' + current.picture);
+        assert.equal(current.picture, video.picture, 'Hình sau cập nhật khác hình trước cập nhật');
+        const evidence = join(work, 'minh-chung');
+        await mkdir(evidence);
+        await copyFile(current.path, join(evidence, 'Veo-sau-0324.mp4'));
+        await writeFile(join(evidence, 'ket-qua.json'), JSON.stringify({
+            scenario: process.env.VEO_QA_CASE, history: old.revs.length, preservedFiles: hashes.length,
+            frames: Number(current.streams[0].nb_frames), sameDecodedPicture: true, platform: process.platform,
+            from: '0.3.23', to: '0.3.24', workerSha256: await sha(join(worker, 'dung-app.mjs')),
+        }, null, 2) + '\n');
         console.log('Hoàn tác, làm lại và xuất lại thành công ' + current.streams[0].nb_frames + ' khung.');
     }
 } finally {

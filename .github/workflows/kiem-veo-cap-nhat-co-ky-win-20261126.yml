@@ -25,8 +25,8 @@ jobs:
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
           $Expected = @{
             'Veo-Windows-Signed-Flow-QA_0.3.23_x64-setup.exe' = '23daa914dd7d7d67d69f74974c0a65b3b8f5908ef01dde7fc742dccc5cfb818d'
-            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe' = 'cd64b0e7f8f08f776c4709d1f3575dc89cb125b460b3e473539f7af581289a46'
-            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe.sig' = '5cb0f3070581affdb561981c6879fb332da5d7511c51209b62aaec0a617ad509'
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r10.exe' = '509992611c65278199440ba3ba120e170193d7bb8beff4f4f6f02774b08fa6b7'
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r10.exe.sig' = '12f5fe5c064d10fe31cbb2451454d9c037fbec386ba90fed24026a8f8e27b760'
             'qa-upgrade-voice.mp4' = '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71'
           }
           $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
@@ -38,6 +38,8 @@ jobs:
           foreach ($Name in $Expected.Keys) {
             if ((Get-FileHash (Join-Path $Qa $Name)).Hash -ne $Expected[$Name]) { throw "Sai SHA-256 của $Name." }
           }
+          Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r10.exe') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe')
+          Move-Item -LiteralPath (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r10.exe.sig') -Destination (Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup.exe.sig')
       - name: Tạo kho cũ, kiểm từ chối gói sai rồi tự cập nhật
         shell: pwsh
         env:
@@ -62,3 +64,10 @@ jobs:
             $Log = Join-Path $Qa $Name
             if (Test-Path -LiteralPath $Log) { Get-Content -LiteralPath $Log -Tail 25 }
           }
+      - name: Lưu bằng chứng cập nhật và MP4 tổng hợp
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-win-cap-nhat-r10-${{ matrix.ca }}
+          path: ${{ runner.temp }}/veo-qa-signed/minh-chung
+          if-no-files-found: error
+          retention-days: 30
