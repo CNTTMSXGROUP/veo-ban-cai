@@ -1,0 +1,71 @@
+name: Kiểm Vèo trên ổ exFAT ở Windows
+on:
+  push:
+    branches: [kiem-veo-qa-win-exfat-20261126]
+permissions:
+  contents: read
+jobs:
+  cai-va-dung:
+    runs-on: windows-2025
+    timeout-minutes: 16
+    permissions:
+      contents: write
+    steps:
+      - name: Tải và kiểm mã băm của ba tệp trong bản nháp
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa-exfat'
+          New-Item -ItemType Directory -Path $Dir | Out-Null
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Draft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Thiếu bản nháp kiểm thử.' }
+          $Files = @{
+            'Veo-QA-Windows-exFAT_0.3.24_x64-setup.exe' = '454ad3c8499e5d3e090ef9acd8f0a16dc2c91db1156d067c246e15bb2e93281b'
+            'veo-qa-windows-exfat-smoke.ps1' = '7efc454476b6404aad930fd989d7d5e421e40676ed632b0f1518144dc692e359'
+            'render-hyperframes-win32-x64-2d1477237512.tar.gz' = '2d1477237512e6872bb98096e39563a3ad16a04a8f7bb1d25112c7df1274b208'
+          }
+          $Download = @('release','download',$Tag,'-R',$env:GITHUB_REPOSITORY,'--dir',$Dir)
+          foreach ($Name in $Files.Keys) { $Download += @('--pattern',$Name) }
+          gh @Download
+          if ($LASTEXITCODE -ne 0) { throw 'Tải tệp kiểm thử không thành công.' }
+          foreach ($Name in $Files.Keys) {
+            if ((Get-FileHash -LiteralPath (Join-Path $Dir $Name) -Algorithm SHA256).Hash -ne $Files[$Name]) { throw "Sai SHA-256: $Name" }
+          }
+      - name: Cài app, gắn ổ ảo exFAT rồi thử tách và xuất clip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa-exfat'
+          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup.exe'
+          $Install = Join-Path $Dir 'Vèo thử, [Windows]'
+          $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
+          if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
+          if ($Installer.ExitCode -ne 0) { throw "Cài NSIS lỗi $($Installer.ExitCode)." }
+
+          $Renderer = Join-Path $Dir 'render-hyperframes-win32-x64-2d1477237512.tar.gz'
+          tar.exe -xzf $Renderer -C $Dir
+          if ($LASTEXITCODE -ne 0) { throw 'Không mở được gói đồ họa.' }
+          $env:DUNG_HYPERFRAMES_DIR = Join-Path $Dir 'render-hyperframes'
+          $Vhd = Join-Path $Dir 'veo-qa-fixture.vhd'
+          $PartScript = Join-Path $Dir 'tao-vhd.txt'
+          if (Test-Path -LiteralPath $Vhd) { throw 'Đường dẫn ảnh đĩa kiểm thử đã tồn tại.' }
+          @("create vdisk file=`"$Vhd`" maximum=512 type=expandable",'exit') | Set-Content -LiteralPath $PartScript -Encoding ascii
+          diskpart.exe /s $PartScript
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $Vhd -PathType Leaf)) { throw 'Không tạo được ảnh đĩa thử.' }
+          $Existing = @(Get-Disk | ForEach-Object Number)
+          Mount-DiskImage -ImagePath $Vhd -Access ReadWrite -NoDriveLetter | Out-Null
+          try {
+            $Disk = @(Get-DiskImage -ImagePath $Vhd | Get-Disk)
+            if ($Disk.Count -ne 1 -or $Disk[0].Number -in $Existing -or $Disk[0].IsBoot -or $Disk[0].IsSystem -or
+                $Disk[0].PartitionStyle -ne 'RAW' -or $Disk[0].Size -lt 500MB -or $Disk[0].Size -gt 520MB) { throw 'Đĩa ảo thử không khớp, dừng trước bước định dạng.' }
+            Initialize-Disk -Number $Disk[0].Number -PartitionStyle MBR
+            $Partition = New-Partition -DiskNumber $Disk[0].Number -AssignDriveLetter -UseMaximumSize
+            $Volume = Format-Volume -Partition $Partition -FileSystem exFAT -NewFileSystemLabel 'VEO_QA' -Confirm:$false
+            if (!$Volume.DriveLetter -or $Volume.FileSystem -ne 'exFAT') { throw 'Ảnh đĩa thử chưa có ổ exFAT.' }
+            $Os = Get-CimInstance Win32_OperatingSystem
+            Write-Host "$($Os.Caption) $($Os.OSArchitecture) $($Os.Version) · $($Volume.FileSystem) $($Volume.Size) byte"
+            & (Join-Path $Dir 'veo-qa-windows-exfat-smoke.ps1') -InstallDir $Install -Version '0.3.24' -OpenApp -ExFatRoot "$($Volume.DriveLetter):\"
+          } finally { Dismount-DiskImage -ImagePath $Vhd | Out-Null }
