@@ -1,0 +1,56 @@
+name: Kiểm nạp lại kho nhạc có dấu trên Windows
+on:
+  push:
+    branches: [kiem-veo-kho-nhac-windows-20261126]
+permissions:
+  contents: read
+jobs:
+  kho-nhac:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Tải bộ cài, phần dựng thử và kho nhạc đúng mã băm
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-kho-nhac-qa'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Expected = @{
+            'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r16.exe' = 'c501281c680b9c4b3316eb4179d0389c172372d9c6d685caed88668342050d28'
+            'Veo-Worker-QA-59ea9a4.mjs' = '600fd2dd5c27650c0ac46ec3d5d4692e6e08092db75597ad0da45f1efe644865'
+            'kho-nhac-co-san.tar' = 'e6fa610e06dbbb5cb1513e1527d96e3f178aeb119d950ee7d6992ed65964407e'
+          }
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern '*.mjs' --pattern '*r16.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'Không tải được tệp kiểm.' }
+          gh release download tai-nguyen-1 -R $env:GITHUB_REPOSITORY --dir $Qa --pattern 'kho-nhac-co-san.tar'
+          if ($LASTEXITCODE -ne 0) { throw 'Không tải được kho nhạc.' }
+          foreach ($Name in $Expected.Keys) {
+            if ((Get-FileHash (Join-Path $Qa $Name)).Hash -ne $Expected[$Name]) { throw "Sai SHA-256 của $Name." }
+          }
+      - name: Tái hiện và dùng lại tệp đã tải sau khi thay phần dựng
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-kho-nhac-qa'
+          $Install = Join-Path $Qa 'app'
+          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r16.exe'
+          $P = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($P.ExitCode -ne 0) { throw 'Cài Vèo thất bại.' }
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Qa 'Veo-Worker-QA-59ea9a4.mjs')).Hash.ToLowerInvariant()
+          $Script = Join-Path $Qa 'kiem-kho-nhac-unicode.mjs'
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/kiem-kho-nhac-unicode.mjs" -OutFile $Script
+          & (Join-Path $Install 'node.exe') $Script $Install $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Nạp lại kho nhạc thất bại.' }
+      - name: Lưu bằng chứng nạp kho nhạc
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-kho-nhac-win-59ea9a4
+          path: ${{ runner.temp }}/veo-kho-nhac-qa/ket-qua-kho-nhac.json
+          if-no-files-found: error
+          retention-days: 30
