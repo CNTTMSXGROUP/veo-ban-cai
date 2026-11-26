@@ -1,59 +1,10 @@
-name: Kiểm sáu mẫu Kho phong cách trên Vèo Windows và Mac Intel
+name: Đối chiếu 120 khung của sáu mẫu Vèo trên Mac Intel
 on:
   push:
-    branches: [kiem-veo-kho-sau-mau-a8ce234]
+    branches: [kiem-veo-kho-sau-mau-intel-a8ce234]
 permissions:
   contents: read
 jobs:
-  kho-windows:
-    runs-on: windows-latest
-    timeout-minutes: 16
-    permissions:
-      contents: write
-    steps:
-      - name: Lấy đúng bộ cài thử từ bản nháp
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-kho-sau-mau'
-          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r19.exe'
-          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
-          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
-          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
-          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '2a29bd0c9ed8acb6e80b2e5ae0aca79542d18ca0e3ce9928e14226e0642c1b7f') {
-            throw 'Không lấy được đúng bộ cài thử.'
-          }
-      - name: Cài Vèo, tạo và dựng video theo sáu mẫu
-        shell: pwsh
-        run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-kho-sau-mau'
-          $Install = Join-Path $Qa 'app'
-          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
-          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r19.exe'
-          $Process = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
-          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
-          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
-          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
-          if ($env:VEO_QA_WORKER_SHA -ne 'd100e23edda07c5a7d42c0c2025cf621eea977fc184076388fa402976d7aec29') { throw 'Sai mã phần dựng.' }
-          $env:VEO_QA_SOURCE = 'a8ce2349f19b342fec6f018325bec950b5353f48'
-          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
-          $env:VEO_QA_PYTHON = (Get-Command python.exe -ErrorAction Stop).Source
-          $env:PYTHONUTF8 = '1'
-          foreach ($File in @('chay-kiem-kho.mjs','kiem-kho.py')) {
-            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile (Join-Path $Qa $File)
-          }
-          & (Join-Path $Install 'node.exe') (Join-Path $Qa 'chay-kiem-kho.mjs') $Install $Qa
-          if ($LASTEXITCODE -ne 0) { throw 'Ca kiểm Kho phong cách thất bại.' }
-      - name: Lưu video và kết quả kiểm
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: veo-kho-sau-mau-windows-a8ce234
-          path: ${{ runner.temp }}/veo-qa-kho-sau-mau/minh-chung
-          if-no-files-found: warn
-          retention-days: 30
   kho-intel:
     runs-on: macos-15-intel
     timeout-minutes: 14

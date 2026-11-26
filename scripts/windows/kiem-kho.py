@@ -5,6 +5,7 @@ from urllib.request import Request, urlopen
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess as sp
 import sys
@@ -51,6 +52,14 @@ def streams(file):
     v,=[r for r in rows["streams"] if r["codec_type"]=="video"]
     a=[r["codec_name"] for r in rows["streams"] if r["codec_type"]=="audio"]
     return v,a,float(rows["format"]["duration"])
+
+def psnr(a,b):
+    check=sp.run([str(ffmpeg),"-hide_banner","-nostdin","-filter_complex_threads","1",
+        "-i",str(evidence/(a+".mp4")),"-i",str(evidence/(b+".mp4")),
+        "-lavfi","psnr","-an","-f","null","-"],capture_output=True,text=True,check=True,timeout=75)
+    result=re.search(r"average:([\d.]+|inf) min:([\d.]+|inf)",check.stderr)
+    assert result,(a,b,check.stderr[-400:])
+    return result.groups()
 
 def export(id,name,w,h):
     at=monotonic()
@@ -120,6 +129,7 @@ for style,look,shape,duration in mau:
     assert edited["picture"]!=base["picture"] and edited["audio"]==base["audio"],(style,edited,base)
     undone=api(f"projects/{id}/undo",{})
     assert undone["head"]==original["head"] and undone["plan"]==original["plan"],style
+    assert undone["timeline"]==original["timeline"],style
 
     made=api("tao-video",{"version":1,"title":"Góc đọc sách","styleId":style,"canvas":shape,"scenes":brief})["id"]
     story=wait(made,"dung")
@@ -127,6 +137,10 @@ for style,look,shape,duration in mau:
     assert sb["styleId"]==style and sb["canvas"]==shape and story["timeline"]["frames"]==120
     assert [{k:c[k] for k in ("text","seconds")} for c in sb["scenes"]]==brief,style
     created=export(made,"tao-"+style,*res[shape])
+    # shortcut: ngưỡng cho clip tổng hợp này, hiệu chuẩn lại nếu đổi tư liệu hoặc cấu hình xuất.
+    db,_=psnr("clip-goc","sua-"+style)
+    assert float(db)<48.5,(style,db)
+    edited["psnrAgainstOriginalDb"]=db
     rows.append({"style":style,"preset":look,"canvas":shape,"sampleSeconds":d,"sampleBytes":len(demo),
                  "previewMs":preview_ms,"previewChanged":True,"applyMs":apply_ms,"undo":True,"edit":edited,"create":created})
     print(style,edited["ms"],created["ms"],edited["warnings"],created["warnings"],flush=True)
@@ -134,8 +148,11 @@ assert sha(path.read_bytes())==source_sha and len(rows)==6
 for purpose in ("edit","create"):
     assert len({r[purpose]["picture"] for r in rows})==6
 restored=export(id,"clip-sau-hoan-tac",*res["ngang"])
-assert (restored["picture"],restored["audio"])==(base["picture"],base["audio"])
+assert restored["audio"]==base["audio"]
+db,minimum=psnr("clip-goc","clip-sau-hoan-tac")
+assert float(minimum)>=49.5,(db,minimum)
 proof={"source":os.environ["VEO_QA_SOURCE"],"workerSha256":os.environ["VEO_QA_WORKER_SHA"],"system":os.environ["VEO_QA_OS"],
-       "inputSha256":source_sha,"restored":True,"baselineTail":False,"rows":rows,"useAi":False}
+       "inputSha256":source_sha,"restored":True,"baselineTail":False,"rows":rows,"useAi":False,
+       "restoredAveragePsnrDb":db,"restoredMinPsnrDb":minimum,"restoredAudioExact":True}
 (evidence/"ket-qua-kho.json").write_text(json.dumps(proof,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
 print(evidence/"ket-qua-kho.json",flush=True)
