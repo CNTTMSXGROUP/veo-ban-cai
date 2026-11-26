@@ -1,0 +1,56 @@
+name: Mở bản nháp OTIO của Vèo r27 trong Blender
+on:
+  push:
+    branches: [kiem-veo-r27-otio-blender]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  otio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - name: Chuẩn bị Blender và tệp r27 đã xuất từ Vèo
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-r27-blender"
+          mkdir -p "$qa"/{nguon,proof}
+          gh run download 45824527845 -R "$GITHUB_REPOSITORY" --name veo-ban-giao-r27-windows --dir "$qa/nguon"
+          (cd "$qa/nguon"
+            sha256sum -c <<'SUMS'
+          6951d1bb39e18203430a2292f1fada939214202e0a004a4c6955b25864cc6196  ban-giao.otio
+          19ed99161998e30dcfbf3f8781b35ee8ca369d17e21a7c702e51f5a19ff167fe  tu-lieu/May A.mp4
+          5ddd6103ebbb6eb0ec5ddd0e04ce7ebf291e470668963fabae1f335b932a7922  tu-lieu/May B.mov
+          SUMS
+          )
+          (
+            sudo -n apt-get update -qq
+            sudo -n apt-get install -y --no-install-recommends xvfb xdotool openbox x11-utils imagemagick python3-pil
+          ) > "$qa/cai-cong-cu.log" 2>&1 &
+          tools_pid=$!
+          package=blender-5.3.0-linux-x64.tar.xz
+          cd "$qa"
+          curl --fail --silent --show-error --location --retry 1 --max-time 150 "https://ftp.halifax.rwth-aachen.de/blender/release/Blender5.3/$package" -o "$package" ||
+            curl --fail --silent --show-error --location --retry 1 --max-time 150 "https://mirror.clarkson.edu/blender/release/Blender5.3/$package" -o "$package"
+          printf 'dacb8264197a3f7fda6001285a5a506fc97ee943881261c2c3bd63c882f22e05  %s\n' "$package" | sha256sum -c
+          tar -xJf "$package"
+          wait "$tools_pid" || { tail -30 "$qa/cai-cong-cu.log"; exit 1; }
+      - name: Nhập OTIO, lưu, mở lại và kiểm hai clip trong Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-r27-blender"
+          url="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/otio/kiem-blender-r27.sh"
+          curl -fsSL --max-time 20 "$url" -o "$qa/kiem-blender-r27.sh"
+          bash "$qa/kiem-blender-r27.sh" "$qa"
+      - name: Lưu ảnh và dự án thử
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r27-blender-giao-dien
+          path: ${{ runner.temp }}/veo-r27-blender/proof
+          if-no-files-found: warn
+          retention-days: 30
