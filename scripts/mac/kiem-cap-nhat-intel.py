@@ -26,7 +26,7 @@ assert old_app["CFBundleIdentifier"] == "vn.msxgroup.phongdung.qa.intel20261126r
 binary = app/"Contents/MacOS"/old_app["CFBundleExecutable"]
 data = home/"Library/Application Support"/old_app["CFBundleIdentifier"]
 runtime = data/"phan-chay-x86_64"
-archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r13.app.tar.gz"
+archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r14.app.tar.gz"
 sig = archive.with_name(archive.name+".sig").read_text().strip()
 feed = {"version":"0.3.24","notes":"Kiểm thử tự cập nhật","platforms":
         {"darwin-x86_64":{"signature":sig,"url":"http://127.0.0.1:59343/ban-moi.tar.gz"}}}
@@ -252,7 +252,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         subprocess.run(["codesign","--verify","--deep","--strict",app],check=True)
         resources=app/"Contents/Resources"
         worker_hash=sha(resources/"worker/dung-app.mjs")
-        assert worker_hash=="9580b15420f5a580f181fc23228d7d35269c7ced1b1a6a3a37583d4fc57eb0d7"
+        assert worker_hash=="c25da82856c2c8246e414648d58f3ed2260f855d47b08c8f1463fbe9caa862eb"
         assert manifest(resources/"phan-chay.json")==new
         notices={"LICENSE":"8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615",
                  "PATENTS":"cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"}
@@ -288,6 +288,8 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         evidence.mkdir()
         shutil.copy2(new_file,evidence/"Veo-sau-0324.mp4")
         shutil.copy2(draft,evidence/"Veo-nhap-sau-0324.otio")
+        subprocess.run([sys.executable,root/"kiem-chuyen-kho.py",root/"chuyen-kho",runtime,runtime/"dung-app.mjs",runtime/"fonts"],check=True)
+        shutil.copy2(root/"chuyen-kho/ket-qua.json",evidence/"chuyen-kho.json")
         (evidence/"ket-qua.json").write_text(json.dumps(proof,ensure_ascii=False,indent=2)+"\n")
         print(json.dumps(proof,ensure_ascii=False),flush=True)
     finally:
