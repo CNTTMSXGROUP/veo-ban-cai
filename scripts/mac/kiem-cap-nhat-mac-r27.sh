@@ -20,7 +20,7 @@ app_pid='' server_pid='' proxy='' hosts_changed=''
 fixture="$HOME/Documents/Veo kho Mac thu.mp4"
 mkdir -p "$proof" "$scratch/nhac" "$scratch/ban-sao" "$scratch/kho-r27" "$qa/goi/runtime"
 ui() { "$scratch/bam-cua-so" "$app_pid" "$@"; }
-click() { ui click "$@"; sleep .25; }
+click() { ui enter-app "$@"; sleep .25; }
 capture() { ui capture "$proof/$1.png"; }
 cleanup() {
   result=$?
@@ -132,7 +132,7 @@ ready 'Tìm video'
 ui key-app 34 cmd
 ui click-text 'Documents'
 ui click-file 'Veo kho Mac thu*'
-click 'Open'
+ui click 'Open'
 ui wait 'Đã lưu dự án' 150
 ui enter-app 'Sửa tay' 20
 ui enter-app 'Thêm mốc*' 20
