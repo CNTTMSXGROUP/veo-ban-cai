@@ -130,10 +130,16 @@ fixture="$HOME/Documents/Canh A.mp4"
 capture '01-danh-sach-lam-viec'
 click 'Tạo mới'
 click 'Từ ý tưởng / Storyboard'
-click 'Dùng kịch bản mẫu'
-if ! ui wait 'Đưa việc vào lịch' 3 2>/dev/null; then
-  ui space 'Dùng kịch bản mẫu'
-  ui wait 'Đưa việc vào lịch' 10
+ui click-app 'Dùng kịch bản mẫu'
+expected_frames=600
+storyboard='mau'
+if ! ui wait 'Đưa việc vào lịch' 8 2>/dev/null; then
+  capture '02-nut-mau-khong-mo'
+  storyboard='tu-nhap'
+  expected_frames=120
+  printf '%s' 'Ghep lich thu' | /usr/bin/pbcopy
+  ui paste-app 'Tên video'
+  ui wait 'Ghep lich thu' 10
 fi
 click 'Chọn tệp cho Ảnh hoặc clip cảnh 1'
 ui click-text 'Documents'
@@ -172,7 +178,7 @@ mp4="$proof/Thanh-pham.mp4"
 cp "$output" "$mp4"
 hash="$(shasum -a 256 "$output" | awk '{print $1}')"
 "$runtime/ffprobe" -v error -select_streams v:0 -show_entries stream=codec_name,width,height,avg_frame_rate,nb_frames -of json "$mp4" > "$proof/mp4.json"
-jq -e '.streams[0] | .codec_name=="h264" and .nb_frames=="600" and .avg_frame_rate=="30/1" and (.height==720 or .width==720)' "$proof/mp4.json" > /dev/null
+jq -e --arg frames "$expected_frames" '.streams[0] | .codec_name=="h264" and .nb_frames==$frames and .avg_frame_rate=="30/1" and (.height==720 or .width==720)' "$proof/mp4.json" > /dev/null
 before="$(grep -c 'GET /.*tar.gz' "$scratch/server.log")"
 ui key 12 cmd
 await_stop
@@ -189,7 +195,7 @@ capture '05-lich-su'
 [[ "$(shasum -a 256 "$output" | awk '{print $1}')" == "$hash" ]]
 after="$(grep -c 'GET /.*tar.gz' "$scratch/server.log")"
 [[ "$before" == 7 && "$after" == "$before" ]]
-jq -n --arg os "$(sw_vers -productVersion)" --arg arch "$arch" --arg sha "$hash" --arg worker "$worker" \
+jq -n --arg os "$(sw_vers -productVersion)" --arg arch "$arch" --arg sha "$hash" --arg worker "$worker" --arg story "$storyboard" \
   --arg dmg "$expected_dmg" --slurpfile video "$proof/mp4.json" \
-  '{macOS:$os,chip:$arch,source:"6e8f8b027cef3cf312dea471b88131595d0c2326",workerSha256:$worker,dmgSha256:$dmg,video:$video[0].streams[0],sha256:$sha,goiLanDau:7,goiMoLai:0,moLai:true}' |
+  '{macOS:$os,chip:$arch,source:"6e8f8b027cef3cf312dea471b88131595d0c2326",workerSha256:$worker,dmgSha256:$dmg,storyboard:$story,video:$video[0].streams[0],sha256:$sha,goiLanDau:7,goiMoLai:0,moLai:true}' |
   tee "$proof/ket-qua.json"

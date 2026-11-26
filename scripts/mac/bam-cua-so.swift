@@ -98,7 +98,9 @@ if command == "dump" {
     guard let code = UInt16(value) else { fail("Sai mã phím.") }
     key(code, flags)
 } else {
-    guard ["wait", "click", "click-text", "click-file", "space"].contains(command) else { fail("Thao tác thử không hợp lệ.") }
+    guard ["wait", "click", "click-text", "click-file", "space", "click-app", "paste-app"].contains(command) else {
+        fail("Thao tác thử không hợp lệ.")
+    }
     let until = Date().addingTimeInterval(args.count >= 4 ? Double(args[3]) ?? 15 : 15)
     var matched: AXUIElement?
     repeat {
@@ -106,6 +108,18 @@ if command == "dump" {
         if matched == nil { Thread.sleep(forTimeInterval: 0.25) }
     } while matched == nil && Date() < until
     guard let element = matched else { fail("Không thấy điều khiển \(value).") }
+    if command == "paste-app" {
+        guard AXUIElementSetAttributeValue(element, "AXFocused" as CFString, kCFBooleanTrue) == .success,
+              let source = CGEventSource(stateID: .privateState) else { fail("Không đặt được tiêu điểm ở \(value).") }
+        Thread.sleep(forTimeInterval: 0.25)
+        for down in [true, false] {
+            guard let event = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: down) else { fail("Thiếu sự kiện phím dán.") }
+            event.flags = .maskCommand
+            event.postToPid(pid)
+            Thread.sleep(forTimeInterval: 0.06)
+        }
+        exit(0)
+    }
     if command == "space" {
         guard AXUIElementSetAttributeValue(element, "AXFocused" as CFString, kCFBooleanTrue) == .success else {
             fail("Không đặt được tiêu điểm ở \(value).")
@@ -118,12 +132,26 @@ if command == "dump" {
         if !app.isActive { _ = app.activate(options: []); Thread.sleep(forTimeInterval: 0.2) }
         guard let box = rect(element) else { fail("Không thấy vị trí \(value).") }
         let point = CGPoint(x: box.midX, y: box.midY)
+        let direct = command == "click-app"
+        let source = direct ? CGEventSource(stateID: .privateState) : nil
+        if direct {
+            var hit: AXUIElement?
+            if AXUIElementCopyElementAtPosition(root, Float(point.x), Float(point.y), &hit) == .success, let hit {
+                print("Vị trí \(point.x), \(point.y): \(labels(hit).joined(separator: " | "))")
+            }
+        }
         for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
-            guard let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left) else {
+            guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left) else {
                 fail("Không tạo được lần bấm \(value).")
             }
-            event.post(tap: .cghidEventTap)
-            Thread.sleep(forTimeInterval: 0.035)
+            if direct && type != .mouseMoved {
+                event.setIntegerValueField(.mouseEventClickState, value: 1)
+                event.setIntegerValueField(.mouseEventNumber, value: 1)
+                event.postToPid(pid)
+            } else {
+                event.post(tap: .cghidEventTap)
+            }
+            Thread.sleep(forTimeInterval: direct ? 0.10 : 0.035)
         }
     }
 }
