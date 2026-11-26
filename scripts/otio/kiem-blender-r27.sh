@@ -174,7 +174,4 @@ assert counts["07-clip-chinh-sau-khi-mo-lai"]["lam"] > 3500, counts
 (root / "ket-qua.json").write_text(json.dumps({"blender": "5.3.0", "moLai": True, "mauKhung": counts}, ensure_ascii=False) + "\n")
 PY
 sha256sum ban-giao.otio | tee "$proof/otio-sha256.txt"
-key ctrl+q
-timeout 18 tail --pid="$app_pid" -f /dev/null
-wait "$app_pid"
-app_pid=""
+# Giữ tệp đã lưu nguyên vẹn khi dọn phiên thử sau khi đổi vị trí đầu phát.
