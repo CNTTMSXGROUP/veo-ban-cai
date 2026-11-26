@@ -48,7 +48,7 @@ async function withWorker(test) {
       const reply = await res.json();
       assert.equal(res.status, status, path + ' ' + JSON.stringify(reply).slice(0, 650));
       return reply;
-    }, fetchWorker);
+    }, fetchWorker, boot);
   } finally {
     output.close();
     processNode.stdin.end();
@@ -138,7 +138,7 @@ const first = await withWorker(async (api, fetchWorker) => {
   return { spec, read, fast, voice, synthMs, seconds, project, availableVoices: giongMay.length };
 });
 
-const result = await withWorker(async (api, fetchWorker) => {
+const result = await withWorker(async (api, fetchWorker, boot) => {
   const approved = await api('giong-doc/duyet', first.spec);
   assert.equal(approved.daCo.id, first.read.id);
   assert.equal(approved.gui, 0);
@@ -169,6 +169,9 @@ const result = await withWorker(async (api, fetchWorker) => {
     exports.push({ styleId, streams, words, silence, firstSceneSha: sha(frame), exportMs: Math.round(performance.now() - started) });
   }
   assert.notEqual(exports[0].firstSceneSha, exports[1].firstSceneSha);
+  execFileSync(process.env.VEO_QA_PYTHON, [join(qa, 'kiem-timecode.py'), ffmpeg, ffprobe, evidence], {
+    windowsHide: true, timeout: 180_000, input: JSON.stringify(boot), stdio: ['pipe', 'inherit', 'inherit'],
+  });
   return { version: '0.3.24', source: process.env.VEO_QA_SOURCE, sha: process.env.VEO_QA_WORKER_SHA,
     os: process.env.VEO_QA_OS, availableVoices: first.availableVoices, voice: first.voice.ten, language: first.voice.tieng,
     durationSec: first.read.durationSec, fasterDurationSec: first.fast.durationSec, sends: 0, synthMs: first.synthMs,
