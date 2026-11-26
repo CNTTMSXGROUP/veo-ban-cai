@@ -113,7 +113,11 @@ quit_app() {
 }
 ready() {
   for try in {1..64}; do
-    if ui click-app 'Dùng ngay' .5 2>/dev/null; then sleep .4; fi
+    if ui wait 'Dùng ngay' .5 2>/dev/null; then
+      ui enter-app 'Dùng ngay' 2 || ui key-app 36
+      if ui wait 'Dùng ngay' .5 2>/dev/null; then ui key-app 53; fi
+      sleep .4
+    fi
     if ui wait "$1" 1 2>/dev/null; then return; fi
   done
   ui wait "$1" 1
@@ -124,8 +128,8 @@ snapshot() {
 play() { ui wait 'Thành phẩm' 90; click 'Phát'; ui wait 'Dừng' 6; capture "$1"; click 'Dừng'; }
 
 start_app cu
-ready 'Thả clip quay thô vào đây*'
-click 'Thả clip quay thô vào đây*'
+ready 'Tìm video'
+ui key-app 34 cmd
 ui click-text 'Documents'
 ui click-file 'Veo kho Mac thu*'
 click 'Open'
