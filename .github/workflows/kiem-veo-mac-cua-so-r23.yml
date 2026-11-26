@@ -1,0 +1,34 @@
+name: Kiểm khả năng thử cửa sổ Vèo trên Mac
+on:
+  push:
+    branches: [kiem-veo-mac-cua-so-r23]
+permissions:
+  contents: read
+jobs:
+  cua-so:
+    runs-on: ${{ matrix.may }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        may: [macos-15, macos-15-intel]
+    steps:
+      - name: Đọc điều kiện thao tác cửa sổ trên máy thử
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          uname -m
+          stat -f 'Phiên màn hình: %Su' /dev/console
+          cat > "$RUNNER_TEMP/quyen.swift" <<'SWIFT'
+          import ApplicationServices
+          import CoreGraphics
+
+          var displays: UInt32 = 0
+          let result = CGGetOnlineDisplayList(0, nil, &displays)
+          print("Màn hình: \(result == .success ? displays : 0)")
+          print("Đọc điều khiển: \(AXIsProcessTrusted())")
+          print("Gửi chuột và phím: \(CGPreflightPostEventAccess())")
+          print("Chụp cửa sổ: \(CGPreflightScreenCaptureAccess())")
+          SWIFT
+          swift "$RUNNER_TEMP/quyen.swift"
