@@ -1,0 +1,93 @@
+{
+  "version": 2,
+  "sources": [
+    {
+      "id": "s1",
+      "original": "/tmp/s1.mov",
+      "path": "/tmp/s1.mp4",
+      "durationSec": 4,
+      "frames": 120
+    }
+  ],
+  "words": [
+    {
+      "id": "w0001",
+      "sourceId": "s1",
+      "heard": "Làm",
+      "text": "Làm",
+      "startSec": 0.1,
+      "endSec": 0.5
+    },
+    {
+      "id": "w0002",
+      "sourceId": "s1",
+      "heard": "trước.",
+      "text": "trước.",
+      "startSec": 0.6,
+      "endSec": 1
+    },
+    {
+      "id": "w0003",
+      "sourceId": "s1",
+      "heard": "Nghe",
+      "text": "Nghe",
+      "startSec": 2,
+      "endSec": 2.4
+    },
+    {
+      "id": "w0004",
+      "sourceId": "s1",
+      "heard": "lại.",
+      "text": "lại.",
+      "startSec": 2.5,
+      "endSec": 2.9
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "sourceId": "s1",
+      "startSec": 0,
+      "endSec": 4,
+      "keep": true
+    }
+  ],
+  "captions": {
+    "breaks": {},
+    "shifts": {},
+    "texts": {}
+  },
+  "style": {
+    "captionKind": "trang-vien-den",
+    "captionUpper": false,
+    "captionLower": true,
+    "captionFontPx": 53,
+    "captionOutlinePx": 4,
+    "captionCenterY": 0.69,
+    "maxWordsPerPage": 9,
+    "keepGapSec": 0.4,
+    "loudnessLufs": -14,
+    "cover": {
+      "on": true,
+      "line1": "",
+      "line2": "",
+      "imagePath": null,
+      "sign": {
+        "pinTwoThirds": true
+      }
+    },
+    "hook": {
+      "on": false,
+      "line1": null,
+      "line2": null
+    },
+    "tail": {
+      "on": true
+    },
+    "music": {
+      "clips": [],
+      "adjusts": []
+    },
+    "voiceClean": "tat"
+  }
+}

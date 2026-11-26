@@ -1,0 +1,76 @@
+name: Kiểm danh sách làm việc của Vèo trong WebView2
+on:
+  push:
+    branches: [kiem-veo-giao-dien-windows-20261126]
+permissions:
+  contents: read
+jobs:
+  giao-dien:
+    runs-on: windows-latest
+    timeout-minutes: 14
+    permissions:
+      contents: write
+    steps:
+      - name: Lấy đúng bộ cài QA từ bản nháp
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-ui-qa'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r16.exe'
+          $InstallerHash = 'c501281c680b9c4b3316eb4179d0389c172372d9c6d685caed88668342050d28'
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne $InstallerHash) { throw 'Không lấy được đúng bộ cài QA.' }
+      - name: Mở Vèo thật và xuất từ danh sách làm việc
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-ui-qa'
+          $Install = Join-Path $Qa 'app'
+          $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Data) -or (Test-Path $Install)) { throw 'Cần máy thử có kho trống.' }
+          foreach ($Name in 'kiem-danh-sach-lam-viec.mjs','danh-sach-lam-viec-plan.json') {
+            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$Name" -OutFile (Join-Path $Qa $Name)
+          }
+          npm install --prefix $Qa --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.64.1
+          if ($LASTEXITCODE -ne 0) { throw 'Không cài được trình điều khiển WebView2.' }
+          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r16.exe'
+          $P = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          $AppFile = Join-Path $Install 'msx-phong-dung.exe'
+          $Worker = Join-Path $Install 'worker/dung-app.mjs'
+          if ($P.ExitCode -ne 0 -or (Get-Item $AppFile).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản Vèo đã cài.' }
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash $Worker).Hash.ToLowerInvariant()
+          if ($env:VEO_QA_WORKER_SHA -ne 'a9c9a97b08a7ab7fedd2af7b284de901f37c9b01a2872c30fdc25db51579d51e') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $env:DUNG_CHEP_LOI = 'may'
+          $env:NO_PROXY = '127.0.0.1,localhost'
+          $Node = Join-Path $Install 'node.exe'
+          $Check = Join-Path $Qa 'kiem-danh-sach-lam-viec.mjs'
+          & $Node $Check tao-kho $Install $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Không tạo được kho thử.' }
+          $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $Qa 'webview2'
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-address=127.0.0.1 --remote-debugging-port=49416 --disable-background-networking --proxy-server=127.0.0.1:9 --proxy-bypass-list="localhost;127.0.0.1;*.localhost" --host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost, EXCLUDE asset.localhost"'
+          $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
+          try {
+            $Stop = (Get-Date).AddSeconds(60)
+            do {
+              $Listener = Get-NetTCPConnection -LocalPort 49416 -State Listen -ErrorAction SilentlyContinue
+              if (!$Listener) { Start-Sleep -Milliseconds 300 }
+            } until ($Listener -or $App.HasExited -or (Get-Date) -ge $Stop)
+            if (!$Listener -or @($Listener | Where-Object LocalAddress -notin '127.0.0.1','::1').Count) { throw 'WebView2 cần mở cổng kiểm trên loopback.' }
+            & $Node $Check xem-va-xuat $Install $Qa
+            if ($LASTEXITCODE -ne 0) { throw 'Luồng giao diện Vèo thất bại.' }
+          } finally {
+            if (!$App.HasExited) { Stop-Process -Id $App.Id }
+          }
+      - name: Lưu ảnh giao diện, MP4 và kết quả kiểm
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-windows-webview2-c885057
+          path: ${{ runner.temp }}/veo-ui-qa/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
