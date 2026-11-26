@@ -286,10 +286,10 @@ try {
         (Find-Ui 'Tư liệu 1') ?? (Find-Ui 'Tư liệu1') ?? (Find-Ui 'Tư liệu')
     } 20 'Không thấy thẻ Tư liệu của storyboard.'
     Click-Ui $Tab
+    Keys '{HOME}'
     Click-Ui (Ui 'Đưa tệp vào')
     Choose-File 'Chọn ảnh hoặc clip' $Pq.path
     Dien 'Tìm tư liệu' 'pq-cam'
-    $null = Ui 'pq-cam.mp4'
     Mouse-Ui (Ui 'Đặt')
     $null = Ui 'Khung nhỏ'
     Mouse-Ui (Ui 'Tự động')
@@ -339,7 +339,16 @@ try {
         Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'nen-hlg-mo-lai.json')
 
 } catch {
-    if ($App -and !$App.HasExited) { $null = Anh 'loi' }
+    if ($App -and !$App.HasExited) {
+        $null = Anh 'loi'
+        try {
+            $Win = [System.Windows.Automation.AutomationElement]::FromHandle($App.MainWindowHandle)
+            $Nodes = $Win.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+            $Nodes | Where-Object { $_.Current.Name -and $_.Current.IsKeyboardFocusable } |
+                ForEach-Object { $_.Current.Name } | Sort-Object -Unique |
+                Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'dieu-khien-khi-loi.txt')
+        } catch { Write-Host 'Không đọc được danh sách điều khiển khi dừng ca.' }
+    }
     $Roots = @($Data, (Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'))
     $Log = Get-ChildItem -LiteralPath $Roots -Recurse -File -Filter 'phan-dung.log' -ErrorAction SilentlyContinue |
         Select-Object -First 1
