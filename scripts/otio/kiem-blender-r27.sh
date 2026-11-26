@@ -40,8 +40,15 @@ cleanup() {
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
   if [[ -n "$wm_pid" ]]; then kill "$wm_pid" 2>/dev/null || true; fi
   kill "$x_pid" 2>/dev/null || true
+  for disk in C: D:; do
+    if [[ "$(readlink "/$disk" 2>/dev/null || true)" == "$qa/$disk" ]]; then sudo -n unlink "/$disk"; fi
+  done
 }
 trap cleanup EXIT
+for disk in C: D:; do
+  [[ ! -e "/$disk" && ! -L "/$disk" ]]
+  sudo -n ln -sT "$qa/$disk" "/$disk"
+done
 for i in {1..40}; do
   if xdpyinfo > /dev/null 2>&1; then break; fi
   sleep .25
@@ -75,7 +82,11 @@ pick_file() {
   key ctrl+a
   type_text "$2"
   capture "$3"
-  xdotool mousemove --window "$browser" "$((w-65))" "$((h-17))" click 1
+  key Return
+  sleep .45
+  if xdotool getwindowname "$browser" >/dev/null 2>&1; then
+    xdotool mousemove --window "$browser" "$((w-65))" "$((h-25))" click 1
+  fi
   sleep 1.5
 }
 
