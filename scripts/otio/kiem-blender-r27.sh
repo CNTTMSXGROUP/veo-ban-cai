@@ -31,7 +31,7 @@ for track in timeline["tracks"]["children"]:
 assert seen == set(fixtures)
 PY
 
-export DISPLAY=:97 LIBGL_ALWAYS_SOFTWARE=1
+export DISPLAY=:97 LIBGL_ALWAYS_SOFTWARE=1 BLENDER_USER_CONFIG="$qa/blender-config"
 Xvfb "$DISPLAY" -screen 0 1366x900x24 -nolisten tcp > "$proof/xvfb.log" 2>&1 &
 x_pid=$!
 app_pid=""
@@ -54,7 +54,7 @@ capture() { import -window root "$proof/$1.png"; }
 key() { xdotool key --clearmodifiers "$@"; }
 type_text() { xdotool type --clearmodifiers -- "$1"; }
 start_app() {
-  "$blender" --factory-startup --window-maximized "$@" > "$proof/blender.log" 2>&1 &
+  "$blender" --window-maximized "$@" >> "$proof/blender.log" 2>&1 &
   app_pid=$!
   win="$(timeout 45 xdotool search --sync --onlyvisible --class blender | head -1)"
   xdotool windowactivate --sync "$win"
@@ -78,7 +78,12 @@ pick_file() {
   sleep 1.5
 }
 
-start_app --app-template Video_Editing
+start_app --factory-startup --app-template Video_Editing
+sleep 2
+capture 00-khoi-tao
+xdotool mousemove 680 666 click 1
+sleep 2
+xdotool mousemove 996 630 click 1
 key Escape
 capture 01-khong-gian-dung
 xdotool mousemove 480 670
