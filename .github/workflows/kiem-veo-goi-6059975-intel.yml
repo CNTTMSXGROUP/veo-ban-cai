@@ -1,0 +1,90 @@
+name: Kiểm cập nhật và bàn giao video với Vèo 0.3.24 trên macOS Intel
+on:
+  push:
+    branches: [kiem-veo-goi-6059975-intel]
+permissions:
+  contents: read
+jobs:
+  cap-nhat-intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 18
+    permissions:
+      contents: write
+    steps:
+      - name: Lấy đúng gói cũ, gói mới và phần chạy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          test "$(sysctl -in sysctl.proc_translated 2>/dev/null || true)" != 1
+          sysctl -n machdep.cpu.brand_string | grep -i Intel
+          sw_vers
+          qa="$RUNNER_TEMP/veo-intel-cap-nhat"
+          mkdir -p "$qa/install" "$qa/runtime"
+          cd "$qa"
+          tag=veo-qa-mac-intel-20261126
+          win=veo-qa-windows-20261126-7bc6cdf
+          test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          test "$(gh release view "$win" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r17.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r17.app.tar.gz.sig'
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir runtime --pattern 'ffmpeg-darwin-x64-8a804cebf686.tar.gz'
+          gh release download "$win" -R "$GITHUB_REPOSITORY" --pattern 'qa-upgrade-voice.mp4'
+          printf '%s\n' \
+            'a39d0d4732f4684aae8cb27c818d58fc006dc5fec2ebbdb3673253e94e7a5eeb  Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' \
+            '5d1afa596b73852ed19ae1719a5fc7db23b3bc32f9d26cf3a4cc678bd3e4097f  Veo-QA-Intel-cap-nhat_0.3.24-r17.app.tar.gz' \
+            'f87630f1a0d17e7fa12ea9578bf4b83f13ea0e7c4ef496f1f38608e71b123e56  Veo-QA-Intel-cap-nhat_0.3.24-r17.app.tar.gz.sig' \
+            '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
+          tar -xzf Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz -C install
+          codesign --verify --deep --strict 'install/Veo QA Intel 26.app'
+          /usr/bin/lipo 'install/Veo QA Intel 26.app/Contents/MacOS/msx-phong-dung' -verify_arch x86_64
+          printf '%s\n' '60ec79f5511d06af8ef23a4a09b7521380a33b2ca6aa36a4d53cf3081dd51a75  install/Veo QA Intel 26.app/Contents/Resources/phan-chay.json' | shasum -a 256 -c
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          curl -fsS --retry 2 "$base/phan-chay-cap-nhat-intel.json" -o phan-chay-moi.json
+          curl -fsS --retry 2 "$base/kiem-cap-nhat-intel.py" -o kiem-cap-nhat-intel.py
+          curl -fsS --retry 2 "$base/kiem-timecode.py" -o kiem-timecode.py
+          curl -fsS --retry 2 "$base/so-cung-luong-x264.py" -o so-cung-luong-x264.py
+          curl -fsS --retry 2 "$base/kiem-chuyen-kho.py" -o kiem-chuyen-kho.py
+          curl -fsS --retry 2 "$base/sau-khi-ghi.mjs" -o sau-khi-ghi.mjs
+          curl -fLsS --max-time 180 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
+          printf '%s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  ggml-base.en-q5_1.bin' | shasum -a 256 -c
+          python3 - <<'PYFETCH'
+          from concurrent.futures import ThreadPoolExecutor
+          import hashlib,json,pathlib,subprocess
+          root=pathlib.Path.cwd()
+          public='https://github.com/CNTTMSXGROUP/veo-ban-cai/releases/download/phan-chay/'
+          old=json.loads((root/'install/Veo QA Intel 26.app/Contents/Resources/phan-chay.json').read_text())['items']
+          def get(item):
+              target=root/'runtime'/item['tep']
+              if not target.exists():
+                  subprocess.run(['curl','-fsSL','--retry','2','--max-time','110',public+item['tep'],'-o',str(target)],check=True)
+              with target.open('rb') as f:
+                  assert hashlib.file_digest(f,'sha256').hexdigest()==item['sha256']
+              print(target.name,flush=True)
+          with ThreadPoolExecutor(max_workers=4) as pool:
+              list(pool.map(get,old))
+          PYFETCH
+      - name: Mở 0.3.23, dựng kho thử rồi tự cập nhật
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-intel-cap-nhat"
+          python3 "$qa/kiem-cap-nhat-intel.py" "$qa"
+          jq -e '.host=="x86_64" and .history==6 and .from=="0.3.23" and .to=="0.3.24" and .sameDecodedPicture and .otioMaskWarning and .otioCarriedInserts == 1' "$qa/minh-chung/ket-qua.json"
+      - name: Đọc log nếu ứng dụng dừng
+        if: always()
+        shell: bash
+        run: |
+          qa="$RUNNER_TEMP/veo-intel-cap-nhat"
+          for f in "$qa/app.log" "$qa/home-qa/Library/Logs/vn.msxgroup.phongdung.qa.intel20261126r5/phan-dung.log"; do
+            if test -f "$f"; then tail -20 "$f"; fi
+          done
+      - name: Lưu bản xuất mẫu và kết quả
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-intel-goi-6059975
+          path: ${{ runner.temp }}/veo-intel-cap-nhat/minh-chung
+          if-no-files-found: error
+          retention-days: 30

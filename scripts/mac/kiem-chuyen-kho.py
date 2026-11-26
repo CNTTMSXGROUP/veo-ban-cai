@@ -23,7 +23,7 @@ def hash_file(path):
     with Path(path).open('rb') as file:
         return hashlib.file_digest(file,'sha256').hexdigest()
 worker_hash=hash_file(worker)
-assert worker_hash=='a9c9a97b08a7ab7fedd2af7b284de901f37c9b01a2872c30fdc25db51579d51e'
+assert worker_hash=='c3017c049887bf6fea44a0f109eefdd4ea5ef7a51b693ea18e0aac29bdbf56ab'
 
 qa.mkdir()
 (qa/'nhac').mkdir()

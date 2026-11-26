@@ -27,7 +27,7 @@ assert old_app["CFBundleIdentifier"] == "vn.msxgroup.phongdung.qa.intel20261126r
 binary = app/"Contents/MacOS"/old_app["CFBundleExecutable"]
 data = home/"Library/Application Support"/old_app["CFBundleIdentifier"]
 runtime = data/"phan-chay-x86_64"
-archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r16.app.tar.gz"
+archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r17.app.tar.gz"
 sig = archive.with_name(archive.name+".sig").read_text().strip()
 feed = {"version":"0.3.24","notes":"Kiểm thử tự cập nhật","platforms":
         {"darwin-x86_64":{"signature":sig,"url":"http://127.0.0.1:59343/ban-moi.tar.gz"}}}
@@ -256,7 +256,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         subprocess.run(["codesign","--verify","--deep","--strict",app],check=True)
         resources=app/"Contents/Resources"
         worker_hash=sha(resources/"worker/dung-app.mjs")
-        assert worker_hash=="a9c9a97b08a7ab7fedd2af7b284de901f37c9b01a2872c30fdc25db51579d51e"
+        assert worker_hash=="c3017c049887bf6fea44a0f109eefdd4ea5ef7a51b693ea18e0aac29bdbf56ab"
         assert manifest(resources/"phan-chay.json")==new
         notices={"LICENSE":"8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615",
                  "PATENTS":"cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"}
@@ -334,6 +334,8 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
                "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":cpu_equal and equal_auto,"automaticPictureEqual":after_picture==before_picture,"automaticPicturePsnr":automatic["summary"],
                "signedUpdateRelaunched":True,"newRuntimeRequests":fetched,"verifiedFfmpegBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash,"otioFps":otio_start["rate"],"otioMaskWarning":True,"otioCarriedInserts":len(carried)}
         shutil.copy2(draft,evidence/"Veo-nhap-sau-0324.otio")
+        subprocess.run([sys.executable,root/"kiem-timecode.py",runtime/"ffmpeg",runtime/"ffprobe",evidence],
+                       check=True,input=json.dumps(live),text=True,timeout=180)
         subprocess.run([sys.executable,root/"kiem-chuyen-kho.py",root/"chuyen-kho",runtime,runtime/"dung-app.mjs",runtime/"fonts"],check=True)
         shutil.copy2(root/"chuyen-kho/ket-qua.json",evidence/"chuyen-kho.json")
         (evidence/"ket-qua.json").write_text(json.dumps(proof,ensure_ascii=False,indent=2)+"\n")
