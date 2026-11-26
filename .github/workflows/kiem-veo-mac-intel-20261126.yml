@@ -28,13 +28,13 @@ jobs:
           win=veo-qa-windows-20261126-7bc6cdf
           test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
           test "$(gh release view "$win" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
-          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r14.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r14.app.tar.gz.sig'
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz.sig'
           gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir runtime --pattern 'ffmpeg-darwin-x64-8a804cebf686.tar.gz'
           gh release download "$win" -R "$GITHUB_REPOSITORY" --pattern 'qa-upgrade-voice.mp4'
           printf '%s\n' \
             'a39d0d4732f4684aae8cb27c818d58fc006dc5fec2ebbdb3673253e94e7a5eeb  Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' \
-            '1f656c13a83149670c66ca3c7aad1363fbba98b2af530bfb41fa91797f9faec7  Veo-QA-Intel-cap-nhat_0.3.24-r14.app.tar.gz' \
-            '616262362634342ab2bfe813d4350be55e63959074f791096698d5db72a5c131  Veo-QA-Intel-cap-nhat_0.3.24-r14.app.tar.gz.sig' \
+            '12187f7e2dfbc372047402c9c5673591d0ec95da8ffd0fa1abeb46b89d8d6fbe  Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz' \
+            '74ac0e1096363f1eb2fa6f811c9b73714c13eb970d7ca0b0f3289645c238b210  Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz.sig' \
             '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
           tar -xzf Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz -C install
           codesign --verify --deep --strict 'install/Veo QA Intel 26.app'
@@ -43,7 +43,6 @@ jobs:
           base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
           curl -fsS --retry 2 "$base/phan-chay-cap-nhat-intel.json" -o phan-chay-moi.json
           curl -fsS --retry 2 "$base/kiem-cap-nhat-intel.py" -o kiem-cap-nhat-intel.py
-          curl -fsS --retry 2 "$base/do-luong-x264.py" -o do-luong-x264.py
           curl -fsS --retry 2 "$base/kiem-chuyen-kho.py" -o kiem-chuyen-kho.py
           curl -fsS --retry 2 "$base/sau-khi-ghi.mjs" -o sau-khi-ghi.mjs
           curl -fLsS --max-time 180 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
@@ -70,7 +69,7 @@ jobs:
           set -euo pipefail
           qa="$RUNNER_TEMP/veo-intel-cap-nhat"
           python3 "$qa/kiem-cap-nhat-intel.py" "$qa"
-          jq -e '.host=="x86_64" and .history==6 and .from=="0.3.23" and .to=="0.3.24" and .sameDecodedPicture' "$qa/minh-chung/ket-qua.json"
+          jq -e '.host=="x86_64" and .history==6 and .from=="0.3.23" and .to=="0.3.24" and .sameDecodedPicture and .otioMaskWarning and .otioCarriedInserts == 1' "$qa/minh-chung/ket-qua.json"
       - name: Đọc log nếu ứng dụng dừng
         if: always()
         shell: bash
@@ -83,7 +82,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-intel-cap-nhat-r14
+          name: veo-intel-cap-nhat-r15
           path: ${{ runner.temp }}/veo-intel-cap-nhat/minh-chung
           if-no-files-found: error
           retention-days: 30
