@@ -21,11 +21,11 @@ jobs:
           test "$(sysctl -in sysctl.proc_translated 2>/dev/null || true)" != 1
           sysctl -n machdep.cpu.brand_string | grep -i Intel
           sw_vers
-          qa="$RUNNER_TEMP/veo-intel-r7"
+          qa="$RUNNER_TEMP/veo-intel-r9"
           mkdir -p "$qa/runtime"
           tag='veo-qa-mac-intel-20261126'
           test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
-          gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa" --pattern 'Veo-QA-mac-x64_0.3.24-r7.dmg'
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa" --pattern 'Veo-QA-mac-x64_0.3.24-r9.dmg'
           gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa/runtime" \
             --pattern 'ffmpeg-darwin-x64-8a804cebf686.tar.gz' \
             --pattern 'render-hyperframes-darwin-x64-b1e7e958e6de.tar.gz'
@@ -48,30 +48,31 @@ jobs:
           PYFETCH
           cd "$qa"
           printf '%s\n' \
-            '3b4e71a392b2fee1980dbd9adea5cf2c1f4848efa3eed183fc40856ba7865d07  Veo-QA-mac-x64_0.3.24-r7.dmg' \
+            '7a18e1d9c250160eccf86de9f9b384ed58f98d2819277efd088794267155ec3a  Veo-QA-mac-x64_0.3.24-r9.dmg' \
             '8a804cebf686b809a5ea0d6f5f02aa34b7ca5b6dcef2b890b26bbd0d8ef1d63f  runtime/ffmpeg-darwin-x64-8a804cebf686.tar.gz' \
             'b1e7e958e6de9cdecf15cfc4ffdc4b99f625fd8cf11378aec3c741bb56ffe0b5  runtime/render-hyperframes-darwin-x64-b1e7e958e6de.tar.gz' | shasum -a 256 -c
       - name: Cài máy trống, thử lại đổi khung, dựng và xuất
         shell: bash
         run: |
           set -euo pipefail
-          qa="$RUNNER_TEMP/veo-intel-r7"
+          qa="$RUNNER_TEMP/veo-intel-r9"
           curl -fsS --retry 2 "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac/kiem-ban-thu.py" -o "$qa/kiem-ban-thu.py"
+          curl -fsS --retry 2 "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/kiem-ban-giao.mjs" -o "$qa/kiem-ban-giao.mjs"
           python3 "$qa/kiem-ban-thu.py" "$qa" x64
-          jq -e '.host=="x86_64" and .motion and .warm.bytes==0 and .sourceWorkerSha256=="ab9c2274cc97d2d765b14aaf8b22634034ac1a954a9fb4adf4cef839caf7ae1c"' "$qa/minh-chung/ket-qua.json"
+          jq -e '.host=="x86_64" and .motion and .delivery and .warm.bytes==0 and .sourceWorkerSha256=="ef6a14085397580bb9d748fea6c4ed122e9b2b955c59f57172086b73e0be16b1"' "$qa/minh-chung/ket-qua.json"
       - name: Xem log của ứng dụng thử
         if: always()
         shell: bash
         run: |
           shopt -s nullglob
-          for log in "$RUNNER_TEMP"/veo-intel-r7/app-*.log; do tail -20 "$log"; done
+          for log in "$RUNNER_TEMP"/veo-intel-r9/app-*.log; do tail -20 "$log"; done
           worker="$HOME/Library/Logs/vn.msxgroup.phongdung.qa.intel20261126r5/phan-dung.log"
           if [ -f "$worker" ]; then tail -20 "$worker"; fi
       - name: Lưu MP4 tổng hợp và báo cáo kiểm thử
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-mac-intel-r7
-          path: ${{ runner.temp }}/veo-intel-r7/minh-chung
+          name: veo-mac-intel-r9
+          path: ${{ runner.temp }}/veo-intel-r9/minh-chung
           if-no-files-found: error
           retention-days: 30

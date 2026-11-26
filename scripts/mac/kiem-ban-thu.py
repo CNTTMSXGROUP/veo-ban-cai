@@ -34,7 +34,7 @@ def digest(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
-dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r7.dmg"
+dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r9.dmg"
 run("/usr/bin/hdiutil","attach",dmg,"-mountpoint",mount,"-readonly","-nobrowse","-noautoopen")
 try:
     run("/usr/bin/ditto",mount / installed.name,installed)
@@ -132,12 +132,14 @@ def start_app():
            "DUNG_KHO_NHAC":str(root/"nhac"),"DUNG_CHEP_LOI":"may"}
     for key in ("DUNG_FFMPEG","DUNG_FFPROBE","DUNG_GROQ_KEYS","DUNG_HYPERFRAMES_DIR","DUNG_DATA"):
         env.pop(key,None)
+    if arch == "arm64":
+        env.pop("CFFIXED_USER_HOME", None)
     if use_renderer:
         env["DUNG_HYPERFRAMES_BROWSER"] = str(chrome)
     (root/"nhac").mkdir(exist_ok=True)
     (root/"nhac/kho-nhac.json").write_text("[]\n")
     with (root/f"app-{phase}.log").open("w") as log:
-        return subprocess.Popen([str(binary)],env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+        return subprocess.Popen([str(binary), *(["-NSAppSleepDisabled","YES"] if arch == "arm64" else [])],env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
 
 def stop_app(proc):
     if proc.poll() is None:
@@ -239,6 +241,11 @@ def test_cold(boot):
     base = {"retry":True,"shapes":sizes,"audioHash":aac,"peakChecks":len(peaks)}
     (evidence/"kiem-co-ban.json").write_text(json.dumps(base,ensure_ascii=False,indent=2)+"\n")
     print("cold: đổi khung sau lỗi và ba tỷ lệ cùng AAC đã đạt",flush=True)
+    run(runtime/"node",root/"kiem-ban-giao.mjs",root,data,evidence/"ban-giao",runtime/"ffmpeg",
+        input=json.dumps({"port":boot["port"],"token":boot["token"]}).encode())
+    delivery=json.loads((evidence/"ban-giao/dinh-dang.json").read_text())
+    assert delivery["arch"]==arch and [c["silent"] for c in delivery["checks"]]==[2,3]
+    base["delivery"]=True
     scenes=[{"text":"Cảnh một","seconds":2},{"text":"Cảnh hai","seconds":2}]
     motion = False
     if use_renderer:
