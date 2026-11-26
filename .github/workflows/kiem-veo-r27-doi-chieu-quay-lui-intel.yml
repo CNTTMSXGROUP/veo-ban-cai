@@ -1,0 +1,49 @@
+name: Đối chiếu cửa sổ khi quay lui Vèo trên Intel
+on:
+  push:
+    branches: [kiem-veo-r27-doi-chieu-quay-lui-intel]
+permissions:
+  contents: read
+jobs:
+  cua-so:
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Đối chiếu 0.3.23 công khai, bản ghi lỗi và r27 trên cùng bản sao kho
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-doi-chieu-intel"
+          mkdir -p "$qa"
+          cd "$qa"
+          tag=veo-qa-mac-intel-20261126
+          win=veo-qa-windows-20261126-7bc6cdf
+          old='Veo_0.3.23_x64.app.tar.gz'
+          diagnostic='Veo-QA-mac-x64_0.3.23-chan-doan-quay-lui.app.tar.gz'
+          new='Veo-QA-mac-x64_0.3.24-r27.app.tar.gz'
+          for draft in "$tag" "$win"; do
+            [[ "$(gh release view "$draft" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
+          done
+          gh release download v0.3.23 -R "$GITHUB_REPOSITORY" --pattern "$old"
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern "$diagnostic" --pattern "$new"
+          gh release download "$win" -R "$GITHUB_REPOSITORY" --pattern 'qa-upgrade-voice.mp4'
+          printf '%s\n' "30e67062d56c547ebea94cdd1230b35c8fa68b29ff0d4ca78450846c6efc687f  $old" "cb6564eaf1bd4afe8278dda8657c12e0397d2b9c3e7494851e8a417925863edc  $diagnostic" "e3542d5ab8fe431455f5bccc0643a85be29b69da4efebc999f63388276b8543e  $new" '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
+          curl -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
+          printf '%s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  ggml-base.en-q5_1.bin' | shasum -a 256 -c
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-quay-lui-intel.sh tao-kho-0323.mjs; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-quay-lui-intel.sh" "$qa"
+      - name: Lưu ảnh, dữ liệu chẩn đoán và MP4 khôi phục
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r27-doi-chieu-quay-lui-intel
+          path: ${{ runner.temp }}/veo-qa-doi-chieu-intel/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
