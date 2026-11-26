@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Tải và kiểm mã băm của ba tệp trong bản nháp
+      - name: Tải và kiểm mã băm của bốn tệp trong bản nháp
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -23,7 +23,8 @@ jobs:
           $Draft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
           if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Thiếu bản nháp kiểm thử.' }
           $Files = @{
-            'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r2.exe' = '45c9743424ea5018903c88b8bc3007bc6e8dd7f2623283d3b0d2b635c49c8389'
+            'veo-qa-aac-xung.tar.gz' = '4bf01db099d08ba8060291ffb78844a204e70acadb1ade624ab41f7c0d7c3acc'
+            'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r3.exe' = '8c4812e12c1c899937ac0860209c185c31daf05dbb8815f8fa4b97924645102e'
             'veo-qa-windows-exfat-smoke-r4.ps1' = '53877f83be1a049aee0338789959c5cf3d74403cdefb2e5651b79940522fe048'
             'render-hyperframes-win32-x64-2d1477237512.tar.gz' = '2d1477237512e6872bb98096e39563a3ad16a04a8f7bb1d25112c7df1274b208'
           }
@@ -39,7 +40,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa-exfat'
-          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r2.exe'
+          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r3.exe'
           $Install = Join-Path $Dir 'Vèo thử, [Windows]'
           $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
@@ -49,6 +50,8 @@ jobs:
           tar.exe -xzf $Renderer -C $Dir
           if ($LASTEXITCODE -ne 0) { throw 'Không mở được gói đồ họa.' }
           $env:DUNG_HYPERFRAMES_DIR = Join-Path $Dir 'render-hyperframes'
+          tar.exe -xzf (Join-Path $Dir 'veo-qa-aac-xung.tar.gz') -C $Dir
+          if ($LASTEXITCODE -ne 0) { throw 'Không mở được mẫu kiểm AAC.' }
           $Vhd = Join-Path $Dir 'veo-qa-fixture.vhd'
           $PartScript = Join-Path $Dir 'tao-vhd.txt'
           if (Test-Path -LiteralPath $Vhd) { throw 'Đường dẫn ảnh đĩa kiểm thử đã tồn tại.' }
@@ -68,4 +71,6 @@ jobs:
             $Os = Get-CimInstance Win32_OperatingSystem
             Write-Host "$($Os.Caption) $($Os.OSArchitecture) $($Os.Version) · $($Volume.FileSystem) $($Volume.Size) byte"
             & (Join-Path $Dir 'veo-qa-windows-exfat-smoke-r4.ps1') -InstallDir $Install -Version '0.3.24' -OpenApp -ExFatRoot "$($Volume.DriveLetter):\"
+            & (Join-Path $Install 'node.exe') (Join-Path $Dir 'kiem-aac.mjs') (Join-Path $Install 'ffmpeg.exe') (Join-Path $Dir 'xung.wav') ("$($Volume.DriveLetter):" + [IO.Path]::DirectorySeparatorChar)
+            if ($LASTEXITCODE -ne 0) { throw 'Kiểm tra hạ đỉnh AAC trên Windows không đạt.' }
           } finally { Dismount-DiskImage -ImagePath $Vhd | Out-Null }
