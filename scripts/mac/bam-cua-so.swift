@@ -76,7 +76,13 @@ let command = args[1]
 let value = args[2]
 let root = AXUIElementCreateApplication(pid)
 
-if command == "dump" {
+if command == "fit" {
+    let screen = CGDisplayBounds(CGMainDisplayID())
+    guard let element = children(root).first(where: { attr($0, "AXRole") as? String == "AXWindow" }),
+          let window = rect(element) else { fail("Không đọc được kích thước cửa sổ.") }
+    print("Màn hình \(screen) · cửa sổ \(window)")
+    guard screen.contains(window) else { fail("Cửa sổ vượt khỏi màn hình.") }
+} else if command == "dump" {
     print("Màn hình thử \(CGDisplayBounds(CGMainDisplayID()))")
     var queue = children(root)
     var i = 0
@@ -101,7 +107,8 @@ if command == "dump" {
     if shot.terminationStatus != 0 { fail("Không chụp được ảnh cửa sổ.") }
 } else if command == "key" || command == "key-app" {
     if !app.isActive { _ = app.activate(options: []); Thread.sleep(forTimeInterval: 0.2) }
-    let flags: CGEventFlags = args.count >= 4 && args[3] == "cmd" ? .maskCommand : []
+    let shortcut = args.count >= 4 ? args[3] : ""
+    let flags: CGEventFlags = shortcut == "cmd" ? .maskCommand : (shortcut == "ctrl-cmd" ? [.maskControl, .maskCommand] : [])
     guard let code = UInt16(value) else { fail("Sai mã phím.") }
     key(code, flags, to: command == "key-app" ? pid : nil)
 } else {
