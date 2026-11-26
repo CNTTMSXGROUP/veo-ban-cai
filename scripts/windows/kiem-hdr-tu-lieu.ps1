@@ -282,7 +282,10 @@ try {
     $null = Test-Palette 'story-hlg' $Hlg.rgb 'Xuất video'
 
     Click-Ui (Ui 'Sửa tay')
-    Click-Ui (Ui 'Tư liệu')
+    $Tab = Wait-Moc {
+        (Find-Ui 'Tư liệu 1') ?? (Find-Ui 'Tư liệu1') ?? (Find-Ui 'Tư liệu')
+    } 20 'Không thấy thẻ Tư liệu của storyboard.'
+    Click-Ui $Tab
     Click-Ui (Ui 'Đưa tệp vào')
     Choose-File 'Chọn ảnh hoặc clip' $Pq.path
     Dien 'Tìm tư liệu' 'pq-cam'

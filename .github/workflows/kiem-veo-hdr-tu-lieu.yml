@@ -35,8 +35,8 @@ jobs:
           $Process = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
           if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
           if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
-          $env:VEO_646effff3e93df723fc6baf0d68c56fa6fa79168f56f331dff18999ef2779511 = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
-          if ($env:VEO_646effff3e93df723fc6baf0d68c56fa6fa79168f56f331dff18999ef2779511 -ne '646effff3e93df723fc6baf0d68c56fa6fa79168f56f331dff18999ef2779511') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
+          if ($env:VEO_QA_WORKER_SHA -ne '646effff3e93df723fc6baf0d68c56fa6fa79168f56f331dff18999ef2779511') { throw 'Sai mã phần dựng.' }
           $env:VEO_QA_SOURCE = 'c4dc2b7204f5da9ca490cd1dc836d77f73965104'
           $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
           $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
