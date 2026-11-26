@@ -31,7 +31,7 @@ func rect(_ element: AXUIElement) -> CGRect? {
     return CGRect(origin: at, size: wh)
 }
 
-func find(_ root: AXUIElement, _ expected: String, clickable: Bool) -> AXUIElement? {
+func find(_ root: AXUIElement, _ expected: String, command: String) -> AXUIElement? {
     var queue = children(root)
     var index = 0
     let prefix = expected.hasSuffix("*") ? String(expected.dropLast()) : nil
@@ -42,9 +42,11 @@ func find(_ root: AXUIElement, _ expected: String, clickable: Bool) -> AXUIEleme
         let match = labels(element).contains { label in
             label == expected || (prefix.map { label.hasPrefix($0) } ?? false)
         }
-        if match && !clickable { return element }
+        if match && command == "wait" { return element }
         let role = attr(element, "AXRole") as? String
-        if match, role != "AXStaticText", role != "AXGroup", role != "AXImage",
+        let interactive = role != "AXStaticText" && role != "AXGroup" && role != "AXImage" && role != "AXWindow"
+        let looksClickable = command == "click-text" ? role == "AXStaticText" : (interactive || command == "click-file")
+        if match, looksClickable,
            (attr(element, "AXEnabled") as? Bool) != false, let box = rect(element),
            desktop.contains(CGPoint(x: box.midX, y: box.midY)) { return element }
         queue.append(contentsOf: children(element))
@@ -90,35 +92,22 @@ if command == "dump" {
     try shot.run()
     shot.waitUntilExit()
     if shot.terminationStatus != 0 { fail("Không chụp được ảnh cửa sổ.") }
-} else if command == "key" || command == "type" {
-    if !app.isActive { _ = app.activate(options: .activateIgnoringOtherApps); Thread.sleep(forTimeInterval: 0.2) }
-    if command == "key" {
-        let modifier = args.count >= 4 ? args[3] : ""
-        var flags: CGEventFlags = []
-        if modifier.contains("cmd") { flags.insert(.maskCommand) }
-        if modifier.contains("shift") { flags.insert(.maskShift) }
-        guard let code = UInt16(value) else { fail("Sai mã phím.") }
-        key(code, flags)
-    } else {
-        let text = Array(value.utf16)
-        guard let press = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
-              let release = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else { fail("Không tạo được phím nhập.") }
-        press.keyboardSetUnicodeString(stringLength: text.count, unicodeString: text)
-        release.keyboardSetUnicodeString(stringLength: text.count, unicodeString: text)
-        press.post(tap: .cghidEventTap)
-        release.post(tap: .cghidEventTap)
-    }
+} else if command == "key" {
+    if !app.isActive { _ = app.activate(options: []); Thread.sleep(forTimeInterval: 0.2) }
+    let flags: CGEventFlags = args.count >= 4 && args[3] == "cmd" ? .maskCommand : []
+    guard let code = UInt16(value) else { fail("Sai mã phím.") }
+    key(code, flags)
 } else {
-    guard ["wait", "click"].contains(command) else { fail("Thao tác thử không hợp lệ.") }
+    guard ["wait", "click", "click-text", "click-file"].contains(command) else { fail("Thao tác thử không hợp lệ.") }
     let until = Date().addingTimeInterval(args.count >= 4 ? Double(args[3]) ?? 15 : 15)
     var matched: AXUIElement?
     repeat {
-        matched = find(root, value, clickable: command == "click")
+        matched = find(root, value, command: command)
         if matched == nil { Thread.sleep(forTimeInterval: 0.25) }
     } while matched == nil && Date() < until
     guard let element = matched else { fail("Không thấy điều khiển \(value).") }
-    if command == "click" {
-        if !app.isActive { _ = app.activate(options: .activateIgnoringOtherApps); Thread.sleep(forTimeInterval: 0.2) }
+    if command != "wait" {
+        if !app.isActive { _ = app.activate(options: []); Thread.sleep(forTimeInterval: 0.2) }
         guard let box = rect(element) else { fail("Không thấy vị trí \(value).") }
         let point = CGPoint(x: box.midX, y: box.midY)
         for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {

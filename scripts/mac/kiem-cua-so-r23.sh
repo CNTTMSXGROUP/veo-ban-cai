@@ -8,16 +8,16 @@ scratch="$qa/lam"
 proof="$qa/minh-chung"
 mkdir -p "$scratch/gan" "$scratch/nhac" "$qa/goi" "$proof"
 case "$(uname -m)" in
-  arm64) tag_arch=arm64; arch=arm64 ;;
-  x86_64) tag_arch=x64; arch=x86_64 ;;
+  arm64) tag_arch=arm64; arch=arm64; runtime_arch=aarch64 ;;
+  x86_64) tag_arch=x64; arch=x86_64; runtime_arch=x86_64 ;;
   *) exit 2 ;;
 esac
 tag=veo-qa-mac-intel-20261126
 dmg="Veo-QA-mac-${tag_arch}_0.3.24-r23.dmg"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"
-runtime="$data/phan-chay-$arch"
+runtime="$data/phan-chay-$runtime_arch"
 installed="$scratch/Vèo.app"
-app_pid='' server_pid='' mounted='' hosts_copied='' nguon_mang=''
+app_pid='' server_pid='' mounted='' hosts_copied='' nguon_mang='' fixture=''
 ui() { "$scratch/bam-cua-so" "$app_pid" "$@"; }
 capture() { ui capture "$proof/$1.png"; }
 cleanup() {
@@ -30,6 +30,7 @@ cleanup() {
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
   if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; fi
   if [[ -n "$mounted" ]]; then hdiutil detach "$scratch/gan" >/dev/null || true; fi
+  if [[ -n "$fixture" ]]; then rm -f "$fixture"; fi
   if [[ -n "$nguon_mang" ]]; then
     sudo networksetup -setsecurewebproxystate "$nguon_mang" off || true
   fi
@@ -100,12 +101,6 @@ start_app() {
   kill -0 "$app_pid"
 }
 click() { ui click "$@"; sleep 0.25; }
-field() {
-  click "$1"
-  ui key 0 cmd
-  ui type "$2"
-  ui key 48
-}
 await_stop() {
   for try in {1..40}; do
     if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; app_pid=''; return; fi
@@ -116,23 +111,28 @@ await_stop() {
 }
 
 start_app moi
-if ! ui click 'Dùng ngay' 4; then ui wait 'Tạo mới' 120; fi
+if ! ui click 'Dùng ngay' 4 2>/dev/null; then ui wait 'Tạo mới' 90; fi
+for try in {1..45}; do
+  if jq -e --slurpfile source "$resources/phan-chay.json" '. == ($source[0].items | map({key:.ten,value:.sha256}) | from_entries)' "$runtime/.da-cai.json" > /dev/null 2>&1; then break; fi
+  sleep 1
+done
 jq -e --slurpfile source "$resources/phan-chay.json" '. == ($source[0].items | map({key:.ten,value:.sha256}) | from_entries)' "$runtime/.da-cai.json" > /dev/null
 "$runtime/ffmpeg" -v error -f lavfi -i 'testsrc2=s=256x256:r=30:d=4' -an -c:v libx264 -threads 1 "$proof/Canh A.mp4"
+mkdir -p "$HOME/Documents"
+[[ ! -e "$HOME/Documents/Canh A.mp4" ]]
+cp "$proof/Canh A.mp4" "$HOME/Documents/Canh A.mp4"
+fixture="$HOME/Documents/Canh A.mp4"
 capture '01-danh-sach-lam-viec'
 click 'Tạo mới'
 click 'Từ ý tưởng / Storyboard'
-field 'Tên video' 'Ve o QA Mac'
-field 'Số giây cảnh 1' '4'
+click 'Tên video'
+# Phím t, e, s, t trên bàn phím của máy thử.
+for key in 17 14 1 17; do ui key "$key"; done
+ui wait 'test' 10
 click 'Chọn tệp cho Ảnh hoặc clip cảnh 1'
-sleep 1
-ui key 5 cmd-shift
-sleep 0.5
-ui type "$proof/Canh A.mp4"
-sleep 0.5
-ui key 36
-sleep 1
-ui key 36
+ui click-text 'Documents'
+ui click-file 'Canh A*'
+click 'Open'
 ui wait 'Canh A.mp4' 20
 capture '02-storyboard'
 click 'Dựng video'
@@ -159,10 +159,7 @@ ui wait 'Dừng' 8
 capture '04-phat-sau-khi-mo-lai'
 click 'Dừng'
 click 'Sửa tay'
-if ! ui click 'Lịch sử xuất' 5; then
-  click 'Hệ thống'
-  click 'Lịch sử xuất'
-fi
+click 'Lịch sử xuất'
 ui wait "$(basename "$output")" 15
 capture '05-lich-su'
 [[ "$(shasum -a 256 "$output" | awk '{print $1}')" == "$hash" ]]
