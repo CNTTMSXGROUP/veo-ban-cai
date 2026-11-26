@@ -34,7 +34,7 @@ def digest(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
-dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r9.dmg"
+dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r10.dmg"
 run("/usr/bin/hdiutil","attach",dmg,"-mountpoint",mount,"-readonly","-nobrowse","-noautoopen")
 try:
     run("/usr/bin/ditto",mount / installed.name,installed)
@@ -53,7 +53,8 @@ runtime = data / ("phan-chay-" + ("aarch64" if arch == "arm64" else "x86_64"))
 assert not data.exists(), "Cần kho kiểm thử trống"
 run("/usr/bin/codesign","--verify","--deep","--strict",installed)
 run("/usr/bin/lipo",binary,"-verify_arch",platform)
-assert list((resources / "licenses").glob("LIBVPX-PATENTS.txt"))
+assert digest(resources / 'licenses' / 'LIBVPX-LICENSE.txt') == '8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615'
+assert digest(resources / 'licenses' / 'LIBVPX-PATENTS.txt') == 'cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c'
 core = {p["tep"]:p for p in json.loads((resources/"phan-chay.json").read_text())["items"]}
 renderer, = json.loads((resources/"phan-do-hoa.json").read_text())["items"]
 assert len(core) == 7
