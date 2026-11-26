@@ -14,9 +14,6 @@ jobs:
           - runner: macos-26
             chip: arm64
             dmg_sha: 94317aff46ad6eac84fbde946f79b79e019acdab3515939067e587d6a8a8a76f
-          - runner: macos-15-intel
-            chip: x64
-            dmg_sha: 81c43c025c70003be8e4529c44146c518fecffedc36980ffc10a4c8900ebfd4c
     timeout-minutes: 12
     permissions:
       contents: write

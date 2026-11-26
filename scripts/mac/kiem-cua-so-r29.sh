@@ -159,6 +159,7 @@ if ! ui wait 'Xuất video' 55; then
   ui wait 'Xuất video' 70
 fi
 click 'Sửa tay'
+if [[ "$arch" == arm64 ]]; then click 'Thu dải thời gian'; fi
 click 'Hiệu ứng hình'
 click 'Cả video'
 click 'Phim cũ'
