@@ -83,7 +83,9 @@ async function taoKho() {
 
 async function xemVaXuat() {
   await mkdir(proof, { recursive: true });
-  const browser = await chromium.connectOverCDP('http://127.0.0.1:49416', { timeout: 20_000 });
+  const port = Number(process.env.VEO_QA_CDP_PORT);
+  assert(Number.isInteger(port) && port > 0 && port < 65536, 'Sai cổng WebView2');
+  const browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, { timeout: 20_000 });
   const context = browser.contexts()[0];
   assert(context, 'Thiếu ngữ cảnh WebView2');
   await context.route('**/*', (route) => {

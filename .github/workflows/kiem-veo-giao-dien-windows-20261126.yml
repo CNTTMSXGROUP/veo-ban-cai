@@ -51,20 +51,36 @@ jobs:
           $Check = Join-Path $Qa 'kiem-danh-sach-lam-viec.mjs'
           & $Node $Check tao-kho $Install $Qa
           if ($LASTEXITCODE -ne 0) { throw 'Không tạo được kho thử.' }
-          $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $Qa 'webview2'
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-address=127.0.0.1 --remote-debugging-port=49416 --disable-background-networking --proxy-server=127.0.0.1:9 --proxy-bypass-list="localhost;127.0.0.1;*.localhost" --host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost, EXCLUDE asset.localhost"'
-          $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
+          $Profile = Join-Path $Qa 'webview2'
+          $env:WEBVIEW2_USER_DATA_FOLDER = $Profile
+          $Policy = 'HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          $Exe = Split-Path $AppFile -Leaf
+          $Flags = '--remote-debugging-address=127.0.0.1 --remote-debugging-port=0 --disable-background-networking --proxy-server=127.0.0.1:9 --proxy-bypass-list="localhost;127.0.0.1;*.localhost" --host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost, EXCLUDE asset.localhost"'
+          New-Item -Path $Policy -Force | Out-Null
+          if (Get-ItemProperty -Path $Policy -Name $Exe -ErrorAction SilentlyContinue) { throw 'Máy thử đã có chính sách WebView2 cho Vèo.' }
+          New-ItemProperty -Path $Policy -Name $Exe -Value $Flags -PropertyType String | Out-Null
+          $App = $null
           try {
+            $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
             $Stop = (Get-Date).AddSeconds(60)
+            $PortFile = Join-Path $Profile 'EBWebView/DevToolsActivePort'
             do {
-              $Listener = Get-NetTCPConnection -LocalPort 49416 -State Listen -ErrorAction SilentlyContinue
-              if (!$Listener) { Start-Sleep -Milliseconds 300 }
-            } until ($Listener -or $App.HasExited -or (Get-Date) -ge $Stop)
+              if (!(Test-Path $PortFile)) { Start-Sleep -Milliseconds 300 }
+            } until ((Test-Path $PortFile) -or $App.HasExited -or (Get-Date) -ge $Stop)
+            if (!(Test-Path $PortFile)) {
+              $Browser = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object ParentProcessId -eq $App.Id)
+              $Debug = @($Browser | Where-Object CommandLine -match '--remote-debugging-port=').Count
+              $Profiles = @(Get-ChildItem -Path $Profile -Name -ErrorAction SilentlyContinue) -join ', '
+              throw "WebView2 chưa báo cổng. App đã thoát $($App.HasExited). Cửa sổ '$($App.MainWindowTitle)'. WebView2 $($Browser.Count), có cờ kiểm $Debug. Thư mục $Profiles."
+            }
+            $env:VEO_QA_CDP_PORT = (Get-Content $PortFile -TotalCount 1).Trim()
+            $Listener = Get-NetTCPConnection -LocalPort ([int]$env:VEO_QA_CDP_PORT) -State Listen -ErrorAction SilentlyContinue
             if (!$Listener -or @($Listener | Where-Object LocalAddress -notin '127.0.0.1','::1').Count) { throw 'WebView2 cần mở cổng kiểm trên loopback.' }
             & $Node $Check xem-va-xuat $Install $Qa
             if ($LASTEXITCODE -ne 0) { throw 'Luồng giao diện Vèo thất bại.' }
           } finally {
-            if (!$App.HasExited) { Stop-Process -Id $App.Id }
+            if ($App -and !$App.HasExited) { Stop-Process -Id $App.Id }
+            Remove-ItemProperty -Path $Policy -Name $Exe
           }
       - name: Lưu ảnh giao diện, MP4 và kết quả kiểm
         if: always()
