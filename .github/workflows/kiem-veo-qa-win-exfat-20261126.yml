@@ -24,8 +24,8 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $Draft -ne 'true') { throw 'Thiếu bản nháp kiểm thử.' }
           $Files = @{
             'veo-qa-aac-xung.tar.gz' = '4bf01db099d08ba8060291ffb78844a204e70acadb1ade624ab41f7c0d7c3acc'
-            'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r4.exe' = '0cb088e959f672aa37b2060ed7319207705098403d7efe3b4a8770a44a22e0d5'
-            'veo-qa-windows-exfat-smoke-r4.ps1' = '53877f83be1a049aee0338789959c5cf3d74403cdefb2e5651b79940522fe048'
+            'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r5.exe' = '739323b186fbbb11eb20633f60e8c13296060f8f9a63da13b28623f0cc904ecd'
+            'veo-qa-windows-exfat-smoke-r5.ps1' = '7475394c809f2a0077dd89d5d3f98be574c8ab4b289745ca137fe49c47be2add'
             'render-hyperframes-win32-x64-2d1477237512.tar.gz' = '2d1477237512e6872bb98096e39563a3ad16a04a8f7bb1d25112c7df1274b208'
           }
           $Download = @('release','download',$Tag,'-R',$env:GITHUB_REPOSITORY,'--dir',$Dir)
@@ -40,7 +40,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $Dir = Join-Path $env:RUNNER_TEMP 'veo-qa-exfat'
-          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r4.exe'
+          $Setup = Join-Path $Dir 'Veo-QA-Windows-exFAT_0.3.24_x64-setup-r5.exe'
           $Install = Join-Path $Dir 'Vèo thử, [Windows]'
           $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
@@ -70,7 +70,7 @@ jobs:
             if (!$Volume.DriveLetter -or $Volume.FileSystem -ne 'exFAT') { throw 'Ảnh đĩa thử chưa có ổ exFAT.' }
             $Os = Get-CimInstance Win32_OperatingSystem
             Write-Host "$($Os.Caption) $($Os.OSArchitecture) $($Os.Version) · $($Volume.FileSystem) $($Volume.Size) byte"
-            & (Join-Path $Dir 'veo-qa-windows-exfat-smoke-r4.ps1') -InstallDir $Install -Version '0.3.24' -OpenApp -ExFatRoot "$($Volume.DriveLetter):\"
+            & (Join-Path $Dir 'veo-qa-windows-exfat-smoke-r5.ps1') -InstallDir $Install -Version '0.3.24' -OpenApp -ExFatRoot "$($Volume.DriveLetter):\"
             & (Join-Path $Install 'node.exe') (Join-Path $Dir 'kiem-aac.mjs') (Join-Path $Install 'ffmpeg.exe') (Join-Path $Dir 'xung.wav') ("$($Volume.DriveLetter):" + [IO.Path]::DirectorySeparatorChar)
             if ($LASTEXITCODE -ne 0) { throw 'Kiểm tra hạ đỉnh AAC trên Windows không đạt.' }
           } finally { Dismount-DiskImage -ImagePath $Vhd | Out-Null }
