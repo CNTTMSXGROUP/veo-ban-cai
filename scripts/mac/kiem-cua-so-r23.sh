@@ -3,7 +3,7 @@ set -euo pipefail
 
 qa="${1:?thư mục thử}"
 expected_dmg="${2:?mã SHA-256 của DMG}"
-[[ "${GITHUB_ACTIONS:-}" == true && "$(dirname "$qa")" == "$RUNNER_TEMP" ]]
+[[ "${GITHUB_ACTIONS:-}" == true && "$(dirname "$qa")" == "$RUNNER_TEMP" && "$(stat -f %Su /dev/console)" == runner ]]
 scratch="$qa/lam"
 proof="$qa/minh-chung"
 mkdir -p "$scratch/gan" "$scratch/nhac" "$qa/goi" "$proof"
@@ -17,7 +17,7 @@ dmg="Veo-QA-mac-${tag_arch}_0.3.24-r23.dmg"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"
 runtime="$data/phan-chay-$arch"
 installed="$scratch/Vèo.app"
-app_pid='' server_pid='' mounted='' hosts_copied=''
+app_pid='' server_pid='' mounted='' hosts_copied='' nguon_mang=''
 ui() { "$scratch/bam-cua-so" "$app_pid" "$@"; }
 capture() { ui capture "$proof/$1.png"; }
 cleanup() {
@@ -30,6 +30,9 @@ cleanup() {
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
   if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; fi
   if [[ -n "$mounted" ]]; then hdiutil detach "$scratch/gan" >/dev/null || true; fi
+  if [[ -n "$nguon_mang" ]]; then
+    sudo networksetup -setsecurewebproxystate "$nguon_mang" off || true
+  fi
   if [[ -n "$hosts_copied" ]]; then sudo cp "$scratch/hosts" /etc/hosts; fi
   exit "$status"
 }
@@ -65,7 +68,7 @@ done < "$scratch/goi.tsv"
 python3 -m http.server 54325 --bind 127.0.0.1 --directory "$qa/goi" > "$scratch/server.log" 2>&1 &
 server_pid=$!
 for try in {1..25}; do
-  if curl -fsS 'http://127.0.0.1:54325/' > /dev/null; then break; fi
+  if curl -fs 'http://127.0.0.1:54325/' > /dev/null; then break; fi
   kill -0 "$server_pid"
   sleep 0.2
 done
@@ -73,15 +76,25 @@ curl -fsS 'http://127.0.0.1:54325/' > /dev/null
 
 cp /etc/hosts "$scratch/hosts"
 hosts_copied=true
-echo '127.0.0.1 srrywxpcxqxuglvsjywg.supabase.co' | sudo tee -a /etc/hosts >/dev/null
-dscacheutil -q host -a name srrywxpcxqxuglvsjywg.supabase.co | grep -x 'ip_address: 127.0.0.1'
+printf '%s\n' '127.0.0.1 srrywxpcxqxuglvsjywg.supabase.co' '::1 srrywxpcxqxuglvsjywg.supabase.co' | sudo tee -a /etc/hosts >/dev/null
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
+# WebKit có thể đọc proxy của máy. Giữ các lượt HTTPS trong máy thử khi dùng phiên tổng hợp.
+iface="$(route -n get default | awk '/interface:/ {print $2}')"
+service="$(networksetup -listnetworkserviceorder | awk -v iface="$iface" '/^\([0-9]+\)/ { service=$0; sub(/^\([0-9]+\) /,"",service) } index($0,"Device: " iface ")") { print service; exit }')"
+[[ -n "$service" ]]
+networksetup -getsecurewebproxy "$service" | grep -Fx 'Enabled: No'
+nguon_mang="$service"
+sudo networksetup -setsecurewebproxy "$nguon_mang" 127.0.0.1 54326
+sudo networksetup -setsecurewebproxystate "$nguon_mang" on
+scutil --proxy | grep -Eq 'HTTPSProxy +: 127\.0\.0\.1'
 mkdir -p "$data"
 printf '[]\n' > "$scratch/nhac/kho-nhac.json"
 (umask 077; printf '%s\n' '{"refresh":"veo-qa-khong-phai-token","id":"00000000-0000-4000-8000-000000000026","email":"veo-qa@example.invalid","ten":"Kho thử Mac"}' > "$data/dang-nhap.json")
 swiftc "$qa/bam-cua-so.swift" -o "$scratch/bam-cua-so"
 start_app() {
   VEO_PHAN_CHAY_GOC='http://127.0.0.1:54325' DUNG_KHO_NHAC="$scratch/nhac" DUNG_CHEP_LOI=may \
-    NO_PROXY='127.0.0.1,localhost' PATH=/usr/bin:/bin:/usr/sbin:/sbin "$bin" > "$scratch/app-$1.log" 2>&1 &
+    HTTPS_PROXY='http://127.0.0.1:54326' NO_PROXY='127.0.0.1,localhost' PATH=/usr/bin:/bin:/usr/sbin:/sbin "$bin" > "$scratch/app-$1.log" 2>&1 &
   app_pid=$!
   sleep 2
   kill -0 "$app_pid"
