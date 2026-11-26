@@ -1,0 +1,34 @@
+name: Đưa clip gốc vào bản sao Drive qua Vèo Mac r33
+on:
+  push:
+    branches: [kiem-veo-r33-drive-gui]
+permissions:
+  contents: read
+jobs:
+  gui:
+    runs-on: macos-26
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Đưa bản dựng và clip gốc vào thư mục thử bằng Vèo Mac
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-cua-so"
+          mkdir -p "$qa"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-drive-r33-mac.sh; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-drive-r33-mac.sh" "$qa" 05199dcd3d6e496dc8e19ad20050949b4a43e5a55e07a557b1ca36528cafa076
+      - name: Lưu thư mục chuyển và ảnh máy gửi
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r33-drive-mac
+          path: ${{ runner.temp }}/veo-qa-mac-cua-so/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
