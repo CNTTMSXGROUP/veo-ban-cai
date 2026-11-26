@@ -1,0 +1,37 @@
+name: Kiểm Veo 3.1 Lite trên Vèo Mac Apple Silicon r33
+on:
+  push:
+    branches: [kiem-veo-r33-lite-mac-arm26]
+permissions:
+  contents: read
+jobs:
+  do:
+    runs-on: macos-26
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Cài Vèo rồi tạo và phát lại clip Veo Lite bằng giao diện
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_QA_DMG_SHA: 05199dcd3d6e496dc8e19ad20050949b4a43e5a55e07a557b1ca36528cafa076
+          VEO_QA_REVISION: r33
+          VEO_QA_WORKER_SHA: 70930267c689bc91a09f31db2435e848d46b9f509360b85eef4046c7fd04ba54
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-lite"
+          mkdir -p "$qa"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-cua-so-r31.sh kiem-veo-lite-r32.sh veo-lite-cloud-thu.cjs; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-cua-so-r31.sh" "$qa" "$VEO_QA_DMG_SHA"
+      - name: Lưu ảnh, video và kết quả
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r33-lite-mac-arm64
+          path: ${{ runner.temp }}/veo-qa-mac-lite/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
