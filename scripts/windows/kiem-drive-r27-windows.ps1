@@ -74,6 +74,16 @@ function Mouse-Ui($Item, [double]$X=.5) {
     [VeoQaWindow]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
     [VeoQaWindow]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
 }
+function Scroll-Drive {
+    $Rect = [VeoQaWindow+Rect]::new()
+    if (![VeoQaWindow]::GetWindowRect($App.MainWindowHandle, [ref]$Rect)) { throw 'Không thấy cửa sổ Chỗ lưu.' }
+    $X = [int](($Rect.L + $Rect.R) / 2)
+    $Y = $Rect.T + [int](($Rect.B - $Rect.T) * .70)
+    if (![VeoQaWindow]::SetCursorPos($X, $Y)) { throw 'Không đặt được con trỏ lên Chỗ lưu.' }
+    $WheelDown = [BitConverter]::ToUInt32([BitConverter]::GetBytes([int]-720), 0)
+    [VeoQaWindow]::mouse_event(0x0800, 0, 0, $WheelDown, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 500
+}
 function Anh([string]$Name) {
     $App.Refresh()
     $Rect = [VeoQaWindow+Rect]::new()
@@ -203,6 +213,7 @@ try {
     $null = Ui '1 tệp cần xử lý'
     $null = Ui $Entry.name
     $null = Wait-Moc { Find-Ui 'Thiếu tệp' -TextPrefix } 15 'Vèo chưa chỉ rõ clip bị thiếu.'
+    Scroll-Drive
     $null = Wait-Moc { Anh '01-thieu-clip-goc' } 12 'Chưa chụp được thông báo thiếu nguồn.'
     $Bytes = [System.IO.File]::ReadAllBytes($Hold)
     $Mid = [int]($Bytes.Length / 2)
@@ -211,6 +222,7 @@ try {
     if ((Get-Item -LiteralPath $OriginalFile).Length -ne $Entry.bytes) { throw 'Ca tệp sai phải giữ nguyên kích thước.' }
     Click-Ui (Ui 'Kiểm lại')
     $null = Wait-Moc { Find-Ui 'Tệp khác bản đã lưu' -TextPrefix } 15 'Vèo chưa báo tệp sai mã băm.'
+    Scroll-Drive
     $null = Wait-Moc { Anh '02-clip-goc-khac-ma-bam' } 12 'Chưa chụp được thông báo sai mã băm.'
     Copy-Item -LiteralPath $Hold -Destination $OriginalFile -Force
     Click-Ui (Ui 'Kiểm lại')
@@ -219,6 +231,7 @@ try {
     Move-Item -LiteralPath $Sync -Destination $Offline
     Click-Ui (Ui 'Làm mới')
     $null = Wait-Moc { Find-Ui 'Không mở được thư mục Drive.' -TextPrefix } 15 'Vèo chưa báo mất thư mục đồng bộ.'
+    Scroll-Drive
     $null = Wait-Moc { Anh '03-kiem-du-roi-ngat-drive' } 12 'Chưa chụp được bản đã kiểm khi ngắt Drive.'
     Click-Ui (Ui 'Mở bản sao')
     $null = Ui 'Đã tạo dự án từ Drive trong danh sách Đang làm.'
@@ -281,18 +294,26 @@ try {
     $Picker.SetFocus()
     Keys '{DOWN}'
     Keys '{END}{ENTER}'
-    Click-Ui (Ui 'Đưa bản dựng lên Drive')
-    $null = Ui 'Bản sao Drive'
+    $Publish = Wait-Moc { Find-Ui 'Đưa bản dựng lên Drive' -Focusable } 20 'Nút gửi lại bản sao chưa bật.'
+    Scroll-Drive
+    $Publish.SetFocus()
+    Keys ' '
+    $null = Wait-Moc {
+        Find-Ui 'Đã lưu vào thư mục Drive.' -TextPrefix
+    } 30 'Vèo chưa xác nhận đã lưu bản sao vào thư mục thứ hai.'
+    Scroll-Drive
     $null = Wait-Moc { Anh '06-luu-ban-sao-tu-windows' } 12 'Chưa chụp được lần lưu lại.'
     $NewIndex = @(Get-ChildItem -LiteralPath $Next -Recurse -File -Filter 'veo.json')
     if ($NewIndex.Count -ne 1) { throw 'Máy nhận chưa ghi đúng một bản để gửi lại.' }
     $SentAgain = Get-Content -LiteralPath $NewIndex[0].FullName -Raw -Encoding utf8 | ConvertFrom-Json -Depth 100
     $AgainOriginal = $SentAgain.plan.sources[0].original
-    if ($AgainOriginal -notmatch '^tep/[0-9]+\.(mp4|mov)$' -or $SentAgain.plan.canvas -ne 'ngang') { throw 'Bản gửi lại sai canvas hoặc sai đường dẫn nguồn.' }
+    if ($AgainOriginal -notmatch '^tep/[0-9]+\.(mp4|mov)$' -or $SentAgain.plan.canvas -ne 'ngang' -or $AgainOriginal -eq $SentAgain.plan.sources[0].path) {
+        throw 'Bản gửi lại sai canvas hoặc sai đường dẫn nguồn.'
+    }
     if ((Get-FileHash -LiteralPath (Join-Path $NewIndex[0].DirectoryName $AgainOriginal)).Hash -ne $OriginalSha) {
         throw 'Gửi lại trên Windows đã làm đổi clip quay gốc.'
     }
-    Copy-Item -LiteralPath $NewIndex[0].FullName -Destination (Join-Path $Proof 'veo-win-gui-lai.json')
+    Copy-Item -LiteralPath $Next -Destination (Join-Path $Proof 'drive-win-gui-lai') -Recurse
     Click-Ui (Ui 'Ngắt kết nối')
     Keys '{ESC}'
     $Hash = (Get-FileHash -LiteralPath $Outputs.mp4.FullName).Hash.ToLowerInvariant()
