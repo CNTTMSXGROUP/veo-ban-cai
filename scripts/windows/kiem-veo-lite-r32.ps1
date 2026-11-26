@@ -18,7 +18,7 @@ function Cloud-Budget([string]$USD) {
     Dien 'ID dự án Google Cloud' 'veo-lite-qa'
     Dien 'Ngân sách ước tính mỗi ngày (USD)' $USD
     Bam 'Dùng phiên Google Cloud'
-    Thay 'Phiên Google Cloud creator@example.invalid'
+    Thay 'creator@example.invalid'
 }
 function Nhat-Ky {
     if (Test-Path -LiteralPath $CloudLog) { Get-Content -LiteralPath $CloudLog | ForEach-Object { ConvertFrom-Json $_ } }
@@ -122,37 +122,46 @@ exit /b 1
         Choose-File 'Chọn ảnh bìa' $Picture
         Thay ("Bỏ ảnh " + [IO.Path]::GetFileName($Picture))
     }
-    Thay 'Ảnh tham chiếu 2/3'
+    Thay 'Ảnh tham chiếu'
     Chon 'Model tạo clip' 3 'Veo 3.1 Lite · Thử nghiệm'
-    Thay 'Ảnh mở đầu 2/1'
-    Thay 'Bỏ bớt ảnh để còn tối đa 1 ảnh cho Veo 3.1 Lite.'
+    Thay 'Ảnh mở đầu'
+    Thay 'Bỏ bớt ảnh để còn tối đa'
+    Thay 'Bỏ ảnh Anh A.png'
+    Thay 'Bỏ ảnh Anh B.png'
     Dien 'Mô tả hình ảnh và chuyển động' 'A slow camera move across the opening frame.'
     if (Find-Ui 'Xem trước và duyệt' -Focusable) { throw 'Lite cho duyệt hai ảnh mở đầu.' }
     Luu-Anh '01-hai-anh-giu-khi-doi-model'
     Chon 'Model tạo clip' 2 'Veo 3.1 Fast'
-    Thay 'Ảnh tham chiếu 2/3'
+    Thay 'Ảnh tham chiếu'
+    Thay 'Bỏ ảnh Anh A.png'
+    Thay 'Bỏ ảnh Anh B.png'
     Bam 'Bỏ ảnh Anh B.png'
     Chon 'Model tạo clip' 3 'Veo 3.1 Lite · Thử nghiệm'
-    Thay 'Ảnh mở đầu 1/1'
+    Thay 'Ảnh mở đầu'
+    Thay 'Bỏ ảnh Anh A.png'
+    if (Find-Ui 'Bỏ ảnh Anh B.png') { throw 'Ảnh bỏ đi vẫn còn trong lượt duyệt.' }
 
     Cloud-Budget '0.11'
     Chon 'Độ phân giải clip' 1 '1080p'
     Bam 'Xem trước và duyệt'
-    Thay 'Ước tính 0,32'
+    Thay 'Ước tính'
+    Thay '0,32'
     Thay 'Ảnh mở đầu sẽ gửi'
     Luu-Anh '02-lite-1080p-co-tieng'
     Bam 'Sửa yêu cầu'
     Chon 'Độ phân giải clip' 0 '720p'
     Bam 'Tạo tiếng cùng clip Veo'
     Bam 'Xem trước và duyệt'
-    Thay 'Ước tính 0,12'
+    Thay 'Ước tính'
+    Thay '0,12'
     Thay 'Vượt ngân sách ước tính còn lại hôm nay.'
     if ((Find-Ui 'Gửi tạo cảnh' -Focusable) -or @(Nhat-Ky).Count -ne 0) { throw 'Không chặn đúng mức ngân sách 0,11 USD.' }
     Luu-Anh '03-chan-vuot-ngan-sach'
 
     Cloud-Budget '0.12'
     Bam 'Xem trước và duyệt'
-    Thay 'Ước tính 0,12'
+    Thay 'Ước tính'
+    Thay '0,12'
     Bam 'Gửi tạo cảnh'
     Thay 'Có biên nhận, có thể tải lại'
     Luu-Anh '04-giu-ma-sau-loi-503'
@@ -171,7 +180,7 @@ exit /b 1
     Thay 'Đã vào kho tư liệu'
     Luu-Anh '05-tai-lai-va-giu-du-tru'
     Bam 'Dùng cho cảnh 1'
-    Thay 'Cảnh 1 · Veo 3.1 Lite'
+    $null = Ui 'Tạo bản dựng mới'
     Bam 'Tạo bản dựng mới'
     $null = Wait-Moc { Find-Ui 'Xuất video' -Focusable } 75 'Chưa dựng lại từ clip đã tạo.'
     $Output = Xuat 'QA Veo Lite Xuat' 120
