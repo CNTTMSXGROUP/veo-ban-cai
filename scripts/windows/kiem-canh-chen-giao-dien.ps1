@@ -180,7 +180,8 @@ try {
     if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm cửa sổ thử.' }
     if ($Skip = Find-Ui 'Dùng ngay') { Click-Ui $Skip }
     Write-Host 'Đã vào Danh sách làm việc trong kho thử.'
-    $null = Ui 'Vèo 0.3.24'
+    $null = Ui 'Vèo 0.3.23'
+    Write-Host 'Bản r20 hiển thị 0.3.23 ở thanh dưới; tiếp tục để kiểm thao tác trong bản này.'
 
 
     Click-Ui (Ui 'Kho phong cách')
@@ -291,6 +292,7 @@ try {
     if (!$App.CloseMainWindow() -or !$App.WaitForExit(15000)) { throw 'Chưa đóng được app để kiểm mở lại.' }
     $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
     $null = Wait-Moc { Find-Ui 'Đèn hiệu cuối đảo' } 85 'Mở lại app không có dự án.'
+    if (!(Find-Ui 'Xuất video') -and !(Find-Ui 'Xuất lại')) { Mouse-Ui (Ui 'Đèn hiệu cuối đảo') }
     $Target = Wait-Moc { Find-Ui 'Sửa tay' } 15 'Mở lại app không có nút Sửa tay.'
     Mouse-Ui $Target
     $null = Ui 'Thu dải thời gian'
