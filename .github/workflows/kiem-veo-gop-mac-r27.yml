@@ -1,7 +1,7 @@
-name: Kiểm khung xem khi thiếu WebGL trên Vèo r25
+name: Kiểm storyboard và phát lại trên Vèo Mac r27
 on:
   push:
-    branches: [kiem-veo-webgl-r25]
+    branches: [kiem-veo-gop-r27]
 permissions:
   contents: read
 jobs:
@@ -11,9 +11,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - runner: macos-15
+            chip: arm64
+            dmg_sha: ce68a23a8449b6cce1cb6d96286627c960a5e0638e8d8880ba4b02a56e370008
           - runner: macos-15-intel
             chip: x64
-            dmg_sha: f1c7fd6dba3cb72cf228d2ecf5fd8071c42f9895a2d815002bfaee057d448e98
+            dmg_sha: b16162137aa40520e13ccbbc96805c936dcd8b0ad2a3221e137a30f6eb546cf1
     timeout-minutes: 12
     permissions:
       contents: write
@@ -28,15 +31,15 @@ jobs:
           qa="$RUNNER_TEMP/veo-qa-mac-cua-so"
           mkdir -p "$qa"
           base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
-          for tep in bam-cua-so.swift kiem-cua-so-r25.sh; do
+          for tep in bam-cua-so.swift kiem-cua-so-r27.sh; do
             curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
           done
-          bash "$qa/kiem-cua-so-r25.sh" "$qa" "$VEO_QA_DMG_SHA"
+          bash "$qa/kiem-cua-so-r27.sh" "$qa" "$VEO_QA_DMG_SHA"
       - name: Lưu ảnh, video và kết quả
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-webgl-${{ matrix.chip }}-r25
+          name: veo-mac-${{ matrix.chip }}-r27
           path: ${{ runner.temp }}/veo-qa-mac-cua-so/minh-chung
           if-no-files-found: warn
           retention-days: 30

@@ -13,7 +13,7 @@ case "$(uname -m)" in
   *) exit 2 ;;
 esac
 tag=veo-qa-mac-intel-20261126
-dmg="Veo-QA-mac-${tag_arch}_0.3.24-r25.dmg"
+dmg="Veo-QA-mac-${tag_arch}_0.3.24-r27.dmg"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"
 runtime="$data/phan-chay-$runtime_arch"
 installed="$scratch/Vèo.app"
@@ -57,7 +57,7 @@ bin="$installed/Contents/MacOS/msx-phong-dung"
 [[ "$(lipo -archs "$bin")" == "$arch" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist")" == 0.3.24 ]]
 worker="$(shasum -a 256 "$resources/worker/dung-app.mjs" | awk '{print $1}')"
-[[ "$worker" == '646effff3e93df723fc6baf0d68c56fa6fa79168f56f331dff18999ef2779511' ]]
+[[ "$worker" == '2743e3bf2fe283e1c165ffda4e4abc1f96c51c3efc90c28a508cb81378736085' ]]
 
 jq -er '.items[] | [.tep,.sha256] | @tsv' "$resources/phan-chay.json" > "$scratch/goi.tsv"
 while IFS=$'\t' read -r name digest; do
@@ -211,5 +211,5 @@ after="$(grep -c 'GET /.*tar.gz' "$scratch/server.log")"
 [[ "$before" == 7 && "$after" == "$before" ]]
 jq -n --arg os "$(sw_vers -productVersion)" --arg arch "$arch" --arg sha "$hash" --arg worker "$worker" --arg story "$storyboard" --arg quit "$quit" \
   --arg dmg "$expected_dmg" --slurpfile video "$proof/mp4.json" \
-  '{macOS:$os,chip:$arch,source:"6e8f8b027cef3cf312dea471b88131595d0c2326",workerSha256:$worker,dmgSha256:$dmg,storyboard:$story,video:$video[0].streams[0],sha256:$sha,goiLanDau:7,goiMoLai:0,thoat:$quit,moLai:true}' |
+  '{macOS:$os,chip:$arch,source:"df9f9bfe2094d13f5bd662780fde6b4ee3022b9c",workerSha256:$worker,dmgSha256:$dmg,storyboard:$story,video:$video[0].streams[0],sha256:$sha,goiLanDau:7,goiMoLai:0,thoat:$quit,moLai:true}' |
   tee "$proof/ket-qua.json"
