@@ -30,6 +30,7 @@ cleanup() {
     for log in "$scratch"/veo-*.log; do
       if [[ -f "$log" ]]; then grep -E 'kiểm bản mới|khởi động|bo qua|phần chạy|Error|error' "$log" | tail -30 >> "$proof/veo-log.txt" || true; fi
     done
+    /usr/bin/log show --last 4m --style compact --predicate '(process CONTAINS "WebKit" OR process == "msx-phong-dung") AND (eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "terminate")' | tail -90 > "$proof/webkit.log" || true
   fi
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
   if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; fi
@@ -129,31 +130,14 @@ play() { ui wait 'Thành phẩm' 90; click 'Phát'; ui wait 'Dừng' 6; capture 
 
 start_app cu
 ready 'Tìm video'
-ui key-app 34 cmd
-ui click-text 'Documents'
-ui click-file 'Veo kho Mac thu*'
-click 'Open'
-ui wait 'Đã lưu dự án' 150
-click 'Sửa tay'
-click 'Hiệu ứng hình'
-click 'Cả video'
-click 'Đen trắng'
-ui wait 'Cường độ mẫu màu' 15
-capture '01-mau-ban-cu'
-click 'Hoàn tác*'
-click 'Làm lại*'
-ui wait 'Cường độ mẫu màu' 12
-click 'Tự động'
-click 'Xuất video'
-click '720p'
-click 'Xuất 1 tệp'
-play '02-phat-tu-ban-cu'
+capture '01-mo-vung-lam-viec-0323'
+quit_app
+VEO_QA_DATA="$data" VEO_QA_CLIP="$fixture" "$runtime/node" "$qa/tao-kho-0323.mjs" "$runtime" "$qa"
 old_out="$(find "$data/du-an" -path '*/xuat/*.mp4' -type f)"
 [[ -f "$old_out" ]]
 old_hash="$(hash "$old_out")"
 src_hash="$(hash "$fixture")"
 cp "$old_out" "$proof/tu-0.3.23.mp4"
-quit_app
 snapshot > "$proof/lich-su-truoc.txt"
 so_ban="$(sqlite3 -readonly "$db" 'SELECT count(*) FROM versions;')"
 [[ "$so_ban" -ge 2 ]]
@@ -164,6 +148,7 @@ ditto "$data/du-an" "$scratch/ban-sao/du-an"
 feed '0.3.24'
 start_app doi
 ready 'Cập nhật bản 0.3.24'
+ui wait 'Lưu trữ · 1' 10
 capture '03-goi-da-duoc-xac-minh'
 [[ "$(hash "$cache")" == "$(hash "$new")" ]]
 old_pid="$app_pid"
@@ -192,7 +177,8 @@ else
   [[ -z "$(app_pids)" ]]
   start_app r27
 fi
-ready 'Thành phẩm'
+ready 'Lưu trữ · 1'
+ui enter-app 'Lưu trữ · 1'
 play '04-phat-ban-cu-trong-r27'
 [[ ! -e "$cache" && "$(hash "$old_out")" == "$old_hash" && "$(hash "$fixture")" == "$src_hash" ]]
 snapshot > "$proof/lich-su-sau.txt"
@@ -218,7 +204,8 @@ done
 cmp "$proof/video-0.3.23.json" "$proof/video-r27.json"
 quit_app
 start_app mo-lai-r27
-ready 'Thành phẩm'
+ready 'Lưu trữ · 1'
+ui enter-app 'Lưu trữ · 1'
 play '05-phat-mp4-r27-sau-khi-mo-lai'
 [[ "$(hash "$new_out")" == "$new_hash" && "$(hash "$old_out")" == "$old_hash" ]]
 quit_app
@@ -233,15 +220,23 @@ tar -xzf "$old" -C "$scratch"
 [[ "$(version)" == '0.3.23' && "$(hash "$bin")" == "$old_binary" ]]
 feed '0.3.23'
 start_app quay-lui
-ready 'Thành phẩm'
-play '06-phat-tu-ban-sao-sau-quay-lui'
+ready 'Lưu trữ · 1'
+capture '06-quay-lui-mo-duoc-kho-cu'
 [[ "$(hash "$old_out")" == "$old_hash" && "$(hash "$scratch/kho-r27/${new_out#"$data/"}")" == "$new_hash" ]]
 snapshot > "$proof/lich-su-quay-lui.txt"
 cmp "$proof/lich-su-truoc.txt" "$proof/lich-su-quay-lui.txt"
 [[ "$(sqlite3 -readonly "$db" 'PRAGMA integrity_check;')" == ok ]]
 [[ "$(grep -c 'GET /veo-r27.tar.gz HTTP' "$scratch/server.log")" == 1 ]]
+old_play=false
+ui enter-app 'Lưu trữ · 1'
+if ui wait 'Thành phẩm' 20; then
+  play '07-phat-tu-ban-sao-sau-quay-lui'
+  old_play=true
+else
+  capture '07-kiem-khung-xem-ban-cu'
+fi
 quit_app
 jq -n --arg os "$(sw_vers -productVersion)" --arg chip "$arch" --arg mode "$mode" --arg worker "$worker" \
-  --arg package "$(hash "$new")" --arg old "$old_hash" --arg new "$new_hash" --argjson versions "$so_ban" \
-  '{macOS:$os,chip:$chip,cachCapNhat:$mode,tu:"0.3.23",den:"0.3.24",workerSha256:$worker,goiSha256:$package,shaVideoCu:$old,shaVideoMoi:$new,soBanSua:$versions,baoToanKho:true,moLaiPhat:true,quayLuiBangBanSao:true}' |
+  --arg package "$(hash "$new")" --arg old "$old_hash" --arg new "$new_hash" --argjson versions "$so_ban" --argjson oldPlay "$old_play" \
+  '{macOS:$os,chip:$chip,cachCapNhat:$mode,tu:"0.3.23",den:"0.3.24",workerSha256:$worker,goiSha256:$package,shaVideoCu:$old,shaVideoMoi:$new,soBanSua:$versions,baoToanKho:true,moLaiPhat:true,quayLuiBangBanSao:true,phatLaiBangBanCu:$oldPlay}' |
   tee "$proof/ket-qua.json"

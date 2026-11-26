@@ -1,7 +1,7 @@
-name: Nâng Vèo Mac lên r27 và thử quay lui bằng bản sao
+name: Nâng Vèo Intel có kho lưu trữ lên r27
 on:
   push:
-    branches: [kiem-veo-r27-cap-nhat-mac]
+    branches: [kiem-veo-r27-cap-nhat-intel-kho-cu]
 permissions:
   contents: read
 jobs:
@@ -14,12 +14,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-26
-            chip: arm64
-            mode: bam
-            old: 4113471eddd2588e72565c817e1814e7cc16947c30ce9cd2ac12b763627dc6e3
-            new: e36dccc921d724aa520cc1b655a3e8a3f902a87ec0cf29c0bad6a0824b7f2891
-            sig: 266baedbc0c787185ac0797b124607f1f789d72656c6e381d0de0b242181efab
           - runner: macos-15-intel
             chip: x64
             mode: thoat
@@ -61,7 +55,7 @@ jobs:
           curl -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
           printf '%s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  ggml-base.en-q5_1.bin' | shasum -a 256 -c
           base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
-          for tep in bam-cua-so.swift kiem-cap-nhat-mac-r27.sh; do
+          for tep in bam-cua-so.swift kiem-cap-nhat-mac-r27.sh tao-kho-0323.mjs; do
             curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
           done
           bash "$qa/kiem-cap-nhat-mac-r27.sh" "$qa" "$qa/$old" "$qa/$new" "$VEO_CA_MODE"
