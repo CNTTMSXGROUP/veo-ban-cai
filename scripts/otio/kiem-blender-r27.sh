@@ -78,16 +78,25 @@ pick_file() {
   type_text "$1/"
   key Return
   sleep .6
-  xdotool mousemove --window "$browser" "$((w/2))" "$((h-17))" click 1
-  key ctrl+a
-  type_text "$2"
-  capture "$3"
-  key Return
-  sleep .45
-  if xdotool getwindowname "$browser" >/dev/null 2>&1; then
-    xdotool mousemove --window "$browser" "$((w-65))" "$((h-25))" click 1
+  if [[ "$2" == *.otio ]]; then
+    capture "$3"
+    # Thư mục nguồn chỉ hiển thị thư mục tư liệu và một tệp OTIO.
+    xdotool mousemove 461 123 click --repeat 2 --delay 110 1
+  else
+    xdotool mousemove 643 624 click 1
+    key ctrl+a
+    type_text "$2"
+    key Return
+    capture "$3"
+    xdotool mousemove 1135 623 click 1
   fi
-  sleep 1.5
+  for i in {1..20}; do
+    if ! xdotool getwindowname "$browser" >/dev/null 2>&1; then sleep .4; return; fi
+    sleep .2
+  done
+  capture "${3}-chua-dong"
+  echo "Hộp tệp còn mở sau thao tác $3 (cửa sổ ${w}x${h})." >&2
+  return 1
 }
 
 start_app --factory-startup --app-template Video_Editing
@@ -105,7 +114,7 @@ type_text 'Import OpenTimelineIO'
 sleep .6
 capture 02-tim-nhap-otio
 key Return
-pick_file "$qa" ban-giao.otio 03-chon-otio
+pick_file "$qa/nguon" ban-giao.otio 03-chon-otio
 capture 04-da-nhap
 xdotool mousemove 480 670
 key Home shift+Left ctrl+s
