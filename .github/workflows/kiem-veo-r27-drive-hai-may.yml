@@ -1,0 +1,88 @@
+name: Khôi phục clip gốc từ Vèo Mac sang Windows r27
+on:
+  push:
+    branches: [kiem-veo-r27-drive-hai-may]
+permissions:
+  contents: read
+jobs:
+  gui:
+    runs-on: macos-26
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Đưa bản dựng và clip gốc vào thư mục thử bằng Vèo Mac
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-cua-so"
+          mkdir -p "$qa"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-drive-r27-mac.sh; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-drive-r27-mac.sh" "$qa" ce68a23a8449b6cce1cb6d96286627c960a5e0638e8d8880ba4b02a56e370008
+      - name: Lưu thư mục chuyển và ảnh máy gửi
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r27-drive-mac
+          path: ${{ runner.temp }}/veo-qa-mac-cua-so/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
+
+  nhan:
+    needs: gui
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Đưa dữ liệu thử của máy gửi vào thư mục đồng bộ của máy nhận
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: veo-r27-drive-mac
+          path: ${{ runner.temp }}/veo-qa-drive-r27/may-gui
+      - name: Cài đúng Vèo Windows r27
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-drive-r27'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe'
+          if ((gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne 'c89212dd71f1bb2c549c7142d9af20d62b0b474a2328b272abe852517c14fa84') { throw 'Sai bộ cài thử.' }
+          $Install = Join-Path $Qa 'app'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
+          $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
+      - name: Kiểm thiếu tệp, khôi phục khi ngắt và xuất bằng clip gốc
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-drive-r27'
+          $Install = Join-Path $Qa 'app'
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
+          if ($env:VEO_QA_WORKER_SHA -ne '2743e3bf2fe283e1c165ffda4e4abc1f96c51c3efc90c28a508cb81378736085') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = 'df9f9bfe2094d13f5bd662780fde6b4ee3022b9c'
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
+          if (Test-Path $Data) { throw 'Cần máy thử có kho trống.' }
+          $env:DUNG_CHEP_LOI = 'may'
+          $env:NO_PROXY = '127.0.0.1,localhost'
+          $Script = Join-Path $Qa 'kiem-drive-r27-windows.ps1'
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/kiem-drive-r27-windows.ps1" -OutFile $Script
+          & pwsh -NoProfile -STA -File $Script -Install $Install -Qa $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Ca kiểm bản sao Drive thất bại.' }
+      - name: Lưu kết quả máy nhận
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r27-drive-windows
+          path: ${{ runner.temp }}/veo-qa-drive-r27/minh-chung
+          if-no-files-found: warn
+          retention-days: 30

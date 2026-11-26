@@ -46,6 +46,8 @@ func find(_ root: AXUIElement, _ expected: String, command: String) -> AXUIEleme
         let role = attr(element, "AXRole") as? String
         let interactive = role != "AXStaticText" && role != "AXGroup" && role != "AXImage" && role != "AXWindow"
         let looksClickable = command == "click-text" ? role == "AXStaticText" : (interactive || command == "click-file")
+        if match, looksClickable, ["enter-app", "paste-app", "space"].contains(command),
+           (attr(element, "AXEnabled") as? Bool) != false { return element }
         if match, looksClickable,
            (attr(element, "AXEnabled") as? Bool) != false, let box = rect(element),
            desktop.contains(CGPoint(x: box.midX, y: box.midY)) { return element }
