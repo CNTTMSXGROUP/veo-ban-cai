@@ -13,11 +13,11 @@ case "$(uname -m)" in
   *) exit 2 ;;
 esac
 tag=veo-qa-mac-intel-20261126
-dmg="Veo-QA-mac-${tag_arch}_0.3.24-r31.dmg"
+dmg="Veo-QA-mac-${tag_arch}_0.3.24-${VEO_QA_REVISION:-r31}.dmg"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"
 runtime="$data/phan-chay-$runtime_arch"
 installed="$scratch/Vèo.app"
-app_pid='' server_pid='' mounted='' hosts_copied='' nguon_mang='' fixture=''
+app_pid='' server_pid='' mounted='' hosts_copied='' nguon_mang='' fixture='' cloud_pid=''
 ui() { "$scratch/bam-cua-so" "$app_pid" "$@"; }
 capture() { ui capture "$proof/$1.png"; }
 cleanup() {
@@ -33,6 +33,7 @@ cleanup() {
   fi
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
   if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; fi
+  if [[ -n "$cloud_pid" ]]; then kill "$cloud_pid" 2>/dev/null || true; fi
   if [[ -n "$mounted" ]]; then hdiutil detach "$scratch/gan" >/dev/null || true; fi
   if [[ -n "$fixture" ]]; then rm -f "$fixture"; fi
   if [[ -n "$nguon_mang" ]]; then
@@ -57,7 +58,7 @@ bin="$installed/Contents/MacOS/msx-phong-dung"
 [[ "$(lipo -archs "$bin")" == "$arch" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist")" == 0.3.24 ]]
 worker="$(shasum -a 256 "$resources/worker/dung-app.mjs" | awk '{print $1}')"
-[[ "$worker" == 'be1338d83671e8897aa8cbd874af41d4ec3aea0439bd8b6dbd810211caf50bd7' ]]
+[[ "$worker" == "${VEO_QA_WORKER_SHA:-be1338d83671e8897aa8cbd874af41d4ec3aea0439bd8b6dbd810211caf50bd7}" ]]
 
 jq -er '.items[] | [.tep,.sha256] | @tsv' "$resources/phan-chay.json" > "$scratch/goi.tsv"
 while IFS=$'\t' read -r name digest; do
@@ -82,6 +83,9 @@ curl -fsS 'http://127.0.0.1:54325/' > /dev/null
 cp /etc/hosts "$scratch/hosts"
 hosts_copied=true
 printf '%s\n' '127.0.0.1 srrywxpcxqxuglvsjywg.supabase.co' '::1 srrywxpcxqxuglvsjywg.supabase.co' | sudo tee -a /etc/hosts >/dev/null
+if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+  printf '%s\n' '127.0.0.1 us-central1-aiplatform.googleapis.com' '::1 us-central1-aiplatform.googleapis.com' | sudo tee -a /etc/hosts >/dev/null
+fi
 sudo dscacheutil -flushcache
 sudo killall -HUP mDNSResponder
 # WebKit có thể đọc proxy của máy. Giữ các lượt HTTPS trong máy thử khi dùng phiên tổng hợp.
@@ -99,6 +103,9 @@ printf '[]\n' > "$scratch/nhac/kho-nhac.json"
 swiftc "$qa/bam-cua-so.swift" -o "$scratch/bam-cua-so"
 start_app() {
   # Cảnh thử không có lời. Tách tải mô hình ra khỏi ca tái hiện cửa sổ trắng.
+  if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+    export DUNG_GCLOUD="$scratch/gcloud" NODE_EXTRA_CA_CERTS="$scratch/cloud-cert.pem" NODE_USE_ENV_PROXY=1
+  fi
   VEO_PHAN_CHAY_GOC='http://127.0.0.1:54325' DUNG_KHO_NHAC="$scratch/nhac" DUNG_CHEP_LOI=may DUNG_WHISPER_MODEL="$scratch/khong-dung-chep-loi.bin" \
     HTTPS_PROXY='http://127.0.0.1:54326' NO_PROXY='127.0.0.1,localhost' PATH=/usr/bin:/bin:/usr/sbin:/sbin "$bin" > "$scratch/app-$1.log" 2>&1 &
   app_pid=$!
@@ -118,6 +125,29 @@ await_stop() {
   return 1
 }
 
+if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+  cat > "$scratch/gcloud" <<'GCLOUD'
+#!/bin/sh
+case "$1 $2" in
+  'auth list') printf '%s\n' creator@example.invalid ;;
+  'auth print-access-token') printf '%s\n' oauth-qa-veo-local-token ;;
+  *) exit 1 ;;
+esac
+GCLOUD
+  chmod +x "$scratch/gcloud"
+  cat > "$scratch/cloud-tls.cnf" <<'TLS'
+[req]
+distinguished_name=dn
+x509_extensions=ext
+prompt=no
+[dn]
+CN=us-central1-aiplatform.googleapis.com
+[ext]
+subjectAltName=DNS:us-central1-aiplatform.googleapis.com
+TLS
+  /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 -config "$scratch/cloud-tls.cnf" \
+    -keyout "$scratch/cloud-key.pem" -out "$scratch/cloud-cert.pem" > "$scratch/cloud-tls.log" 2>&1
+fi
 start_app moi
 if ! ui click 'Dùng ngay' 4 2>/dev/null; then ui wait 'Tạo mới' 90; fi
 ui fit 'cửa sổ thường' | tee "$proof/kich-thuoc-cua-so-thuong.txt"
@@ -126,6 +156,11 @@ for try in {1..45}; do
   sleep 1
 done
 jq -e --slurpfile source "$resources/phan-chay.json" '. == ($source[0].items | map({key:.ten,value:.sha256}) | from_entries)' "$runtime/.da-cai.json" > /dev/null
+if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+  # Chạy ca riêng trên đúng app và bộ chạy vừa cài từ DMG.
+  source "$qa/kiem-veo-lite-r32.sh"
+  exit
+fi
 "$runtime/ffmpeg" -v error -f lavfi -i 'testsrc2=s=256x256:r=30:d=4' -an -c:v libx264 -threads 1 "$proof/Canh A.mp4"
 mkdir -p "$HOME/Documents"
 [[ ! -e "$HOME/Documents/Canh A.mp4" ]]

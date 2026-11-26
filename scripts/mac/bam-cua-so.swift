@@ -46,9 +46,10 @@ func find(_ root: AXUIElement, _ expected: String, command: String) -> AXUIEleme
         let role = attr(element, "AXRole") as? String
         let interactive = role != "AXStaticText" && role != "AXGroup" && role != "AXImage" && role != "AXWindow"
         let looksClickable = command == "click-text" ? role == "AXStaticText" : (interactive || command == "click-file")
-        if match, looksClickable,
-           (attr(element, "AXEnabled") as? Bool) != false, let box = rect(element),
-           desktop.contains(CGPoint(x: box.midX, y: box.midY)) { return element }
+        if match, looksClickable, (attr(element, "AXEnabled") as? Bool) != false {
+            if ["paste-app", "replace-app", "enter-app", "space"].contains(command) { return element }
+            if let box = rect(element), desktop.contains(CGPoint(x: box.midX, y: box.midY)) { return element }
+        }
         queue.append(contentsOf: children(element))
     }
     return nil
@@ -112,7 +113,7 @@ if command == "fit" {
     guard let code = UInt16(value) else { fail("Sai mã phím.") }
     key(code, flags, to: command == "key-app" ? pid : nil)
 } else {
-    guard ["wait", "click", "click-text", "click-file", "space", "click-app", "paste-app", "enter-app"].contains(command) else {
+    guard ["wait", "click", "click-text", "click-file", "space", "click-app", "paste-app", "replace-app", "enter-app"].contains(command) else {
         fail("Thao tác thử không hợp lệ.")
     }
     let until = Date().addingTimeInterval(args.count >= 4 ? Double(args[3]) ?? 15 : 15)
@@ -122,13 +123,16 @@ if command == "fit" {
         if matched == nil { Thread.sleep(forTimeInterval: 0.25) }
     } while matched == nil && Date() < until
     guard let element = matched else { fail("Không thấy điều khiển \(value).") }
-    if ["paste-app", "enter-app", "space"].contains(command) {
+    if ["paste-app", "replace-app", "enter-app", "space"].contains(command) {
         guard AXUIElementSetAttributeValue(element, "AXFocused" as CFString, kCFBooleanTrue) == .success else {
             fail("Không đặt được tiêu điểm ở \(value).")
         }
         Thread.sleep(forTimeInterval: 0.25)
         switch command {
         case "paste-app": key(9, .maskCommand, to: pid)
+        case "replace-app":
+            key(0, .maskCommand, to: pid)
+            key(9, .maskCommand, to: pid)
         case "enter-app": key(36, to: pid)
         default: key(49)
         }
