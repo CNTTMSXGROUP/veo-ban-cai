@@ -224,8 +224,6 @@ try {
     Dien 'Tìm tư liệu' 'EffectCraft'
     $null = Ui "Gắn nhãn cho EffectCraft alpha.$Suffix"
     Mouse-Ui (Ui 'Đặt')
-    Click-Ui (Ui 'Đầy khung')
-    Click-Ui (Ui 'Dải thời gian')
     Dien 'Khung kết thúc' '102'
     Start-Sleep -Milliseconds 600
     Dien 'Khung bắt đầu' '42'
