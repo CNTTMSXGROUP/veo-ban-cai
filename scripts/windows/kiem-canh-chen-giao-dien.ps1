@@ -53,6 +53,10 @@ function Find-Ui([string]$Name, [switch]$ButtonPrefix, [switch]$Focusable) {
             if ($Item.Current.IsEnabled) { return $Item }
         }
     } catch [System.Windows.Automation.ElementNotAvailableException] { return }
+    catch {
+        if ($_.Exception.ToString() -match '0x80010012') { return }
+        throw
+    }
 }
 function Ui([string]$Name) { Wait-Moc { Find-Ui $Name } 15 "Không thấy điều khiển '$Name'." }
 function Keys([string]$Key) { [System.Windows.Forms.SendKeys]::SendWait($Key) }
