@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import struct
+import sqlite3
 import subprocess
 import sys
 import time
@@ -55,6 +56,32 @@ cover_stamp=cover.stat().st_mtime_ns
 cover_hash=digest(cover)
 job=json.loads((root/'yeu-cau.json').read_text())
 assert Path(job['stage']).is_dir()
+
+with sqlite3.connect(data / "phong-dung.db") as db:
+    pending = json.loads(db.execute(
+        "select result_json from export_requests where id=?", (job["requestId"],)
+    ).fetchone()[0])["pending"]
+audio_entry = next(f for f in pending["files"] if f["kind"] == "audio")
+stat_probe = """
+const fs = require('node:fs/promises');
+const [target, staged] = process.argv.slice(1);
+const fields = (s) => Object.fromEntries(
+  ['dev','ino','birthtimeNs','mtimeNs','size'].map(k => [k, String(s[k])]));
+(async () => {
+  const handle = await fs.open(target, 'r');
+  try {
+    console.log(JSON.stringify({node:process.version,uv:process.versions.uv,
+      out:fields(await fs.lstat(target,{bigint:true})),
+      fd:fields(await handle.stat({bigint:true})),
+      source:fields(await fs.stat(staged,{bigint:true}))}));
+  } finally { await handle.close(); }
+})().catch(e => { console.error(e.message); process.exitCode = 1; });
+"""
+probe = json.loads(subprocess.check_output([node, '-e', stat_probe, audio_entry['target'], audio_entry['staged']]))
+with audio.open('rb') as got, Path(audio_entry['staged']).open('rb') as original:
+    sizes = range(0, prefix.st_size, 1 << 20)
+    same = all(got.read(min(1 << 20, prefix.st_size-i)) == original.read(min(1 << 20, prefix.st_size-i)) for i in sizes)
+print(json.dumps({'journalId':audio_entry.get('fileId'), 'beforeRetry':probe, 'samePrefix':same, 'targetMatches':Path(audio_entry['target'])==audio}),flush=True)
 env={**os.environ,'DUNG_DATA':str(data),'DUNG_FFMPEG':str(ffmpeg),'DUNG_FFPROBE':str(ffprobe),
      'DUNG_FONTS':str(worker.parent/'fonts'),'DUNG_CHEP_LOI':'may','DUNG_PORT':'0'}
 for key in ('DUNG_TU_CHAY_LAI','DUNG_TOKEN','DUNG_GIU','DUNG_LOG','DUNG_GROQ_KEYS'): env.pop(key,None)
