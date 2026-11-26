@@ -28,13 +28,13 @@ jobs:
           win=veo-qa-windows-20261126-7bc6cdf
           test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
           test "$(gh release view "$win" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
-          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz.sig'
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r16.app.tar.gz' --pattern 'Veo-QA-Intel-cap-nhat_0.3.24-r16.app.tar.gz.sig'
           gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir runtime --pattern 'ffmpeg-darwin-x64-8a804cebf686.tar.gz'
           gh release download "$win" -R "$GITHUB_REPOSITORY" --pattern 'qa-upgrade-voice.mp4'
           printf '%s\n' \
             'a39d0d4732f4684aae8cb27c818d58fc006dc5fec2ebbdb3673253e94e7a5eeb  Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz' \
-            '12187f7e2dfbc372047402c9c5673591d0ec95da8ffd0fa1abeb46b89d8d6fbe  Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz' \
-            '74ac0e1096363f1eb2fa6f811c9b73714c13eb970d7ca0b0f3289645c238b210  Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz.sig' \
+            '92f6ae1120d8e4d6a95f7a8dce46def46190b2f437ee3ba6e269dd1d8bdc0db8  Veo-QA-Intel-cap-nhat_0.3.24-r16.app.tar.gz' \
+            '27676e8b5fcdb90c382b0a0b13a3a2d8f1e2c61e6b40f67d0e7d2af617adb922  Veo-QA-Intel-cap-nhat_0.3.24-r16.app.tar.gz.sig' \
             '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
           tar -xzf Veo-QA-Intel-cap-nhat_0.3.23.app.tar.gz -C install
           codesign --verify --deep --strict 'install/Veo QA Intel 26.app'
@@ -83,7 +83,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-intel-cap-nhat-r15
+          name: veo-intel-cap-nhat-r16
           path: ${{ runner.temp }}/veo-intel-cap-nhat/minh-chung
           if-no-files-found: error
           retention-days: 30

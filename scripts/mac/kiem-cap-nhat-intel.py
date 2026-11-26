@@ -27,7 +27,7 @@ assert old_app["CFBundleIdentifier"] == "vn.msxgroup.phongdung.qa.intel20261126r
 binary = app/"Contents/MacOS"/old_app["CFBundleExecutable"]
 data = home/"Library/Application Support"/old_app["CFBundleIdentifier"]
 runtime = data/"phan-chay-x86_64"
-archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r15.app.tar.gz"
+archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r16.app.tar.gz"
 sig = archive.with_name(archive.name+".sig").read_text().strip()
 feed = {"version":"0.3.24","notes":"Kiểm thử tự cập nhật","platforms":
         {"darwin-x86_64":{"signature":sig,"url":"http://127.0.0.1:59343/ban-moi.tar.gz"}}}
@@ -256,7 +256,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         subprocess.run(["codesign","--verify","--deep","--strict",app],check=True)
         resources=app/"Contents/Resources"
         worker_hash=sha(resources/"worker/dung-app.mjs")
-        assert worker_hash=="a9eb96c6e87dc58c5b5567b25a9c8e032bf8cd4beae95d6e23af22bf7a7edbce"
+        assert worker_hash=="a9c9a97b08a7ab7fedd2af7b284de901f37c9b01a2872c30fdc25db51579d51e"
         assert manifest(resources/"phan-chay.json")==new
         notices={"LICENSE":"8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615",
                  "PATENTS":"cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"}

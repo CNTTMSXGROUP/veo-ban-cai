@@ -23,7 +23,7 @@ def hash_file(path):
     with Path(path).open('rb') as file:
         return hashlib.file_digest(file,'sha256').hexdigest()
 worker_hash=hash_file(worker)
-assert worker_hash=='a9eb96c6e87dc58c5b5567b25a9c8e032bf8cd4beae95d6e23af22bf7a7edbce'
+assert worker_hash=='a9c9a97b08a7ab7fedd2af7b284de901f37c9b01a2872c30fdc25db51579d51e'
 
 qa.mkdir()
 (qa/'nhac').mkdir()
@@ -112,6 +112,14 @@ crash=state(file)
 assert all(hash_file(path)==h for path,h in contents.items())
 assert crash=={'user_version':0,'exports':False,'rows':before}, crash
 
+stage=src.parents[2]/'tep'
+partial=stage/'.dang-chep-00000000-0000-4000-8000-000000000001'
+note=stage/'.dang-chep-ghi-chu'
+partial.write_bytes(bytes(4*1024*1024))
+note.write_bytes(b'Ghi chu rieng')
+stage_bytes=partial.stat().st_size
+assert stage_bytes==4194304
+
 proc=launch(False)
 try:
     live=read_json(proc)
@@ -125,6 +133,7 @@ try:
     assert project['timeline']['frames']==60
     current=state(file)
     assert current['exports'] and current['user_version']==2
+    assert not partial.exists() and note.read_bytes()==b'Ghi chu rieng'
     assert all(json.loads(raw)['sources'][0]['path']=='lam-viec/nguon/s1.mp4' for raw in current['rows'])
     copied=Path(project['plan']['style']['cover']['imagePath'])
     assert copied.is_relative_to(data/'du-an/p1/tep') and hash_file(copied)==contents[cover]
@@ -149,6 +158,7 @@ finally:
 proof={'platform':sys.platform,'arch':platform.machine(),'node':sp.check_output([node,'-v'],text=True).strip(),
        'workerSha256':worker_hash,'rollbackAfterKill':True,'userVersionAfterKill':0,'newTableAfterKill':False,
        'originalAssetsIntact':True,'legacyDamagedAssetRepaired':True,'recoveredVersions':2,
-       'userVersionAfterRestart':2,'wavFrames':96000}
+       'userVersionAfterRestart':2,'wavFrames':96000,
+       'removedStaleBytes':stage_bytes,'similarNotePreserved':True}
 (qa/'ket-qua.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2)+chr(10),encoding='utf-8')
 print(json.dumps(proof,ensure_ascii=False))
