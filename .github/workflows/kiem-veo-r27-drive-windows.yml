@@ -1,4 +1,4 @@
-name: Kiểm trước Vèo Windows r27 với mẫu đã chốt từ phần dựng
+name: Nhận bản sao do Vèo Mac r27 gửi trên Windows r27
 on:
   push:
     branches: [kiem-veo-r27-drive-windows]
@@ -10,22 +10,23 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      actions: read
     steps:
-      - name: Giải nén mẫu Drive có clip quay gốc
+      - name: Lấy nguyên bản sao do cửa sổ Vèo trên Mac tạo
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-drive-r27'
           $Dest = Join-Path $Qa 'may-gui'
-          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $Asset = 'Veo-QA-r27-drive-mau-phan-dung.zip'
-          if ((gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Cần kho nháp kiểm thử.' }
           New-Item -ItemType Directory -Path $Dest -Force | Out-Null
-          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Asset
-          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Asset)).Hash -ne 'a30f16a585bb4a790b90a03262b41f96f5653fb7f8e38e6cb460e37c8f11eba3') { throw 'Sai SHA-256 mẫu Drive.' }
-          tar -xf (Join-Path $Qa $Asset) -C $Dest
-          if ($LASTEXITCODE -ne 0) { throw 'Không giải nén được mẫu Drive.' }
+          gh run download 45841547291 -R $env:GITHUB_REPOSITORY --name veo-r27-drive-mac --dir $Dest
+          if ($LASTEXITCODE -ne 0) { throw 'Không tải được bản sao Mac.' }
+          if (!(Test-Path -LiteralPath (Join-Path $Dest 'drive/Bản đồng bộ Vèo') -PathType Container)) { throw 'Tên thư mục đồng bộ bị đổi khi chuyển tệp.' }
+          $Sender = Get-Content (Join-Path $Dest 'ket-qua.json') -Raw -Encoding utf8 | ConvertFrom-Json
+          if (!$Sender.guiBangCuaSo -or $Sender.workerSha256 -ne '2743e3bf2fe283e1c165ffda4e4abc1f96c51c3efc90c28a508cb81378736085') {
+            throw 'Mẫu phải do đúng cửa sổ Vèo Mac r27 ghi.'
+          }
       - name: Cài đúng Vèo Windows r27
         shell: pwsh
         env:
@@ -63,7 +64,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-r27-drive-windows-mau
+          name: veo-r27-drive-windows
           path: ${{ runner.temp }}/veo-qa-drive-r27/minh-chung
           if-no-files-found: warn
           retention-days: 30

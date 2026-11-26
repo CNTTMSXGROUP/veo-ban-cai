@@ -32,24 +32,25 @@ function Wait-Moc([scriptblock]$Predicate, [int]$Seconds, [string]$Message) {
     } while ([DateTime]::UtcNow -lt $Until)
     throw $Message
 }
-function Find-Ui([string]$Name, [switch]$ButtonPrefix, [switch]$Focusable) {
+function Find-Ui([string]$Name, [switch]$ButtonPrefix, [switch]$TextPrefix, [switch]$Focusable) {
     $App.Refresh()
     if ($App.HasExited -or $App.MainWindowHandle -eq [IntPtr]::Zero) { return }
     try {
         $Window = [System.Windows.Automation.AutomationElement]::FromHandle($App.MainWindowHandle)
-        $Condition = if ($ButtonPrefix) {
-            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+        $Condition = if ($ButtonPrefix -or $TextPrefix) {
+            $Type = if ($ButtonPrefix) { [System.Windows.Automation.ControlType]::Button } else { [System.Windows.Automation.ControlType]::Text }
+            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $Type)
         } else {
             [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $Name)
         }
         $Items = $Window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $Condition)
         foreach ($Item in $Items) {
-            if ($ButtonPrefix -and !([string]$Item.Current.Name).StartsWith($Name)) { continue }
+            if (($ButtonPrefix -or $TextPrefix) -and !([string]$Item.Current.Name).StartsWith($Name)) { continue }
             if ($Focusable -and !$Item.Current.IsKeyboardFocusable) { continue }
             if ($Item.Current.IsEnabled -and !$Item.Current.IsOffscreen) { return $Item }
         }
         foreach ($Item in $Items) {
-            if ($ButtonPrefix -and !([string]$Item.Current.Name).StartsWith($Name)) { continue }
+            if (($ButtonPrefix -or $TextPrefix) -and !([string]$Item.Current.Name).StartsWith($Name)) { continue }
             if ($Focusable -and !$Item.Current.IsKeyboardFocusable) { continue }
             if ($Item.Current.IsEnabled) { return $Item }
         }
@@ -96,15 +97,17 @@ function Choose-Drive([string]$Path) {
         $Window = $Root.FindFirst([System.Windows.Automation.TreeScope]::Children, $Filter)
         if ($Window -and $Window.Current.ProcessId -eq $App.Id) { $Window }
     } 20 'Không thấy hộp chọn thư mục của Vèo.'
+    $Handle = [IntPtr]$Dialog.Current.NativeWindowHandle
     Keys '%d'
     Keys $Path
     Keys '{ENTER}'
-    $Select = Wait-Moc {
-        $Filter = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-        $Dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $Filter) |
-            Where-Object { $_.Current.AutomationId -eq '1' -or $_.Current.Name -eq 'Select Folder' } | Select-Object -First 1
-    } 15 'Không thấy nút xác nhận thư mục.'
-    Mouse-Ui $Select
+    Start-Sleep -Milliseconds 600
+    $Rect = [VeoQaWindow+Rect]::new()
+    if (![VeoQaWindow]::GetWindowRect($Handle, [ref]$Rect)) { throw 'Không thấy hộp thư mục sau khi điều hướng.' }
+    # shortcut: vị trí nút Select Folder trong hộp chuẩn của runner ở DPI 100%, đổi khi ảnh hộp thay bố cục.
+    if (![VeoQaWindow]::SetCursorPos(($Rect.R - 178), ($Rect.B - 30))) { throw 'Không tới được nút Select Folder.' }
+    [VeoQaWindow]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+    [VeoQaWindow]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
 }
 
 function Read-Color([string]$Path, [double]$X, [double]$Y) {
@@ -199,7 +202,7 @@ try {
     Click-Ui (Ui 'Kiểm tra tư liệu')
     $null = Ui '1 tệp cần xử lý'
     $null = Ui $Entry.name
-    $null = Ui "Thiếu tệp · $Original"
+    $null = Wait-Moc { Find-Ui 'Thiếu tệp' -TextPrefix } 15 'Vèo chưa chỉ rõ clip bị thiếu.'
     $null = Wait-Moc { Anh '01-thieu-clip-goc' } 12 'Chưa chụp được thông báo thiếu nguồn.'
     $Bytes = [System.IO.File]::ReadAllBytes($Hold)
     $Mid = [int]($Bytes.Length / 2)
@@ -207,7 +210,7 @@ try {
     [System.IO.File]::WriteAllBytes($OriginalFile, $Bytes)
     if ((Get-Item -LiteralPath $OriginalFile).Length -ne $Entry.bytes) { throw 'Ca tệp sai phải giữ nguyên kích thước.' }
     Click-Ui (Ui 'Kiểm lại')
-    $null = Ui "Tệp khác bản đã lưu · $Original"
+    $null = Wait-Moc { Find-Ui 'Tệp khác bản đã lưu' -TextPrefix } 15 'Vèo chưa báo tệp sai mã băm.'
     $null = Wait-Moc { Anh '02-clip-goc-khac-ma-bam' } 12 'Chưa chụp được thông báo sai mã băm.'
     Copy-Item -LiteralPath $Hold -Destination $OriginalFile -Force
     Click-Ui (Ui 'Kiểm lại')
@@ -215,7 +218,7 @@ try {
     $Offline = Join-Path $Qa 'drive-da-ngat'
     Move-Item -LiteralPath $Sync -Destination $Offline
     Click-Ui (Ui 'Làm mới')
-    $null = Ui 'Không mở được thư mục Drive. Kiểm tra Google Drive cho máy tính rồi bấm Làm mới.'
+    $null = Wait-Moc { Find-Ui 'Không mở được thư mục Drive.' -TextPrefix } 15 'Vèo chưa báo mất thư mục đồng bộ.'
     $null = Wait-Moc { Anh '03-kiem-du-roi-ngat-drive' } 12 'Chưa chụp được bản đã kiểm khi ngắt Drive.'
     Click-Ui (Ui 'Mở bản sao')
     $null = Ui 'Đã tạo dự án từ Drive trong danh sách Đang làm.'
@@ -279,7 +282,7 @@ try {
     Keys '{DOWN}'
     Keys '{END}{ENTER}'
     Click-Ui (Ui 'Đưa bản dựng lên Drive')
-    $null = Ui 'Đã lưu vào thư mục Drive. Google Drive cho máy tính sẽ tải bản lên.'
+    $null = Ui 'Bản sao Drive'
     $null = Wait-Moc { Anh '06-luu-ban-sao-tu-windows' } 12 'Chưa chụp được lần lưu lại.'
     $NewIndex = @(Get-ChildItem -LiteralPath $Next -Recurse -File -Filter 'veo.json')
     if ($NewIndex.Count -ne 1) { throw 'Máy nhận chưa ghi đúng một bản để gửi lại.' }
