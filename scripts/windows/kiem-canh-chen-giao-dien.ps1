@@ -17,6 +17,8 @@ public static class VeoQaWindow {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int L,T,R,B; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int x, int y, uint data, UIntPtr extra);
 }
 '@
 
@@ -60,6 +62,13 @@ function Click-Ui($Item) {
     if ($Item.TryGetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern, [ref]$Pattern)) { $Pattern.Toggle(); return }
     $Item.SetFocus()
     Keys '{ENTER}'
+}
+function Mouse-Ui($Item) {
+    $Rect = $Item.Current.BoundingRectangle
+    if ($Rect.Width -le 0 -or $Rect.Height -le 0) { throw 'Điều khiển không nằm trên cửa sổ.' }
+    if (![VeoQaWindow]::SetCursorPos([int]($Rect.X + $Rect.Width / 2), [int]($Rect.Y + $Rect.Height / 2))) { throw 'Không đặt được con trỏ trên máy thử.' }
+    [VeoQaWindow]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+    [VeoQaWindow]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
 }
 function Anh([string]$Name) {
     $App.Refresh()
@@ -149,8 +158,8 @@ try {
     $Fixture = Join-Path $Qa 'canh-hong.png'
     & (Join-Path $Install 'ffmpeg.exe') -hide_banner -v error -f lavfi -i 'color=c=0xf90099:s=384x216' -frames:v 1 -threads 1 $Fixture
     if ($LASTEXITCODE -ne 0 -or !(Test-Path $Fixture)) { throw 'Không tạo được ảnh thử.' }
-    Click-Ui (Ui 'Tư liệu')
-    Click-Ui (Ui 'Đưa tệp vào')
+    Mouse-Ui (Ui 'Tư liệu')
+    Mouse-Ui (Ui 'Đưa tệp vào')
     $null = Wait-Moc {
         $Root = [System.Windows.Automation.AutomationElement]::RootElement
         $Name = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, 'Chọn ảnh hoặc clip')
@@ -160,7 +169,7 @@ try {
     Keys '%n'
     Keys $Fixture
     Keys '{ENTER}'
-    Click-Ui (Ui 'Đặt')
+    Mouse-Ui (Ui 'Đặt')
     $null = Ui 'Khung nhỏ'
     Write-Host 'Đã nhập ảnh và đặt cảnh qua giao diện.'
     & (Join-Path $Install 'node.exe') (Join-Path $Qa 'kiem-tay-nam-canh-chen.mjs') $DevPort $Proof
