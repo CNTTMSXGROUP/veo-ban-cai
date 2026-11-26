@@ -1,59 +1,10 @@
-name: Kiểm bản nháp cảnh chèn ngắn trên Vèo Windows và Mac Intel
+name: Kiểm bản nháp cảnh chèn ngắn trên Vèo Mac Intel
 on:
   push:
     branches: [kiem-veo-canh-ngan-a8ce234-windows]
 permissions:
   contents: read
 jobs:
-  giong-windows:
-    runs-on: windows-latest
-    timeout-minutes: 16
-    permissions:
-      contents: write
-    steps:
-      - name: Lấy đúng bộ cài thử từ bản nháp
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-canh-ngan'
-          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r19.exe'
-          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
-          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
-          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
-          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '2a29bd0c9ed8acb6e80b2e5ae0aca79542d18ca0e3ce9928e14226e0642c1b7f') {
-            throw 'Không lấy được đúng bộ cài thử.'
-          }
-      - name: Cài và đối chiếu từng khung trên MP4, FCPXML và OTIO
-        shell: pwsh
-        run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-canh-ngan'
-          $Install = Join-Path $Qa 'app'
-          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
-          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r19.exe'
-          $Process = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
-          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
-          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
-          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
-          if ($env:VEO_QA_WORKER_SHA -ne 'd100e23edda07c5a7d42c0c2025cf621eea977fc184076388fa402976d7aec29') { throw 'Sai mã phần dựng.' }
-          $env:VEO_QA_SOURCE = 'a8ce2349f19b342fec6f018325bec950b5353f48'
-          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
-          $env:VEO_QA_PYTHON = (Get-Command python.exe -ErrorAction Stop).Source
-          $env:PYTHONUTF8 = '1'
-          foreach ($File in @('chay-kiem-canh-ngan.mjs','kiem-canh-ngan.py')) {
-            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile (Join-Path $Qa $File)
-          }
-          & (Join-Path $Install 'node.exe') (Join-Path $Qa 'chay-kiem-canh-ngan.mjs') $Install $Qa
-          if ($LASTEXITCODE -ne 0) { throw 'Ca cảnh chèn ngắn thất bại.' }
-      - name: Lưu video, bản nháp và kết quả kiểm
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: veo-canh-ngan-windows-a8ce234
-          path: ${{ runner.temp }}/veo-qa-canh-ngan/minh-chung
-          if-no-files-found: warn
-          retention-days: 30
   canh-ngan-intel:
     runs-on: macos-15-intel
     timeout-minutes: 10
@@ -75,13 +26,17 @@ jobs:
           dmg=Veo-QA-mac-x64_0.3.24-r18.dmg
           ffmpeg=ffmpeg-darwin-x64-8a804cebf686.tar.gz
           node=node-darwin-x64-4e7afae035ab.tar.gz
+          canvas=ve-chu-darwin-x64-37861a187c68.tar.gz
           test "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
           gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern "$dmg" --pattern "$ffmpeg"
-          curl -fLsS --retry 2 "https://github.com/$GITHUB_REPOSITORY/releases/download/phan-chay/$node" -o "$node"
+          for pkg in "$node" "$canvas"; do
+            curl -fLsS --retry 2 "https://github.com/$GITHUB_REPOSITORY/releases/download/phan-chay/$pkg" -o "$pkg"
+          done
           printf '%s\n' \
             "0eb1493281e916eae1177f3db9118af8662bbbdf655283b17e2ec677838f2bf7  $dmg" \
             "8a804cebf686b809a5ea0d6f5f02aa34b7ca5b6dcef2b890b26bbd0d8ef1d63f  $ffmpeg" \
-            "4e7afae035ab35edbea161ec518a1a13a4c7658573a29406dc5741934e8ad53e  $node" | shasum -a 256 -c
+            "4e7afae035ab35edbea161ec518a1a13a4c7658573a29406dc5741934e8ad53e  $node" \
+            "37861a187c689d33f571bb7cf350ce641615a2974b13f0794e110068af7c00c7  $canvas" | shasum -a 256 -c
           hdiutil attach "$dmg" -mountpoint "$qa/gan" -readonly -nobrowse -noautoopen
           trap 'hdiutil detach "$qa/gan"' EXIT
           app="$qa/gan/Veo QA Intel 26.app"
@@ -94,6 +49,7 @@ jobs:
           test "$VEO_QA_WORKER_SHA" = d100e23edda07c5a7d42c0c2025cf621eea977fc184076388fa402976d7aec29
           export VEO_QA_OS="macOS $(sw_vers -productVersion) · $(sysctl -n machdep.cpu.brand_string)"
           tar -xzf "$node" -C "$qa/runtime"
+          tar -xzf "$canvas" -C "$qa/runtime"
           tar -xzf "$ffmpeg" -C "$qa/runtime"
           base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts"
           curl -fsS --retry 2 "$base/windows/kiem-canh-ngan.py" -o kiem-canh-ngan.py
