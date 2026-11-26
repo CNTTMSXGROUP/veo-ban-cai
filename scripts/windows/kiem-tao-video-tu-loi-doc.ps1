@@ -41,12 +41,12 @@ function Find-Ui([string]$Name, [switch]$ButtonPrefix, [switch]$Focusable) {
         }
         $Items = $Window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $Condition)
         foreach ($Item in $Items) {
-            if ($ButtonPrefix -and !$Item.Current.Name.StartsWith($Name)) { continue }
+            if ($ButtonPrefix -and !([string]$Item.Current.Name).StartsWith($Name)) { continue }
             if ($Focusable -and !$Item.Current.IsKeyboardFocusable) { continue }
             if ($Item.Current.IsEnabled -and !$Item.Current.IsOffscreen) { return $Item }
         }
         foreach ($Item in $Items) {
-            if ($ButtonPrefix -and !$Item.Current.Name.StartsWith($Name)) { continue }
+            if ($ButtonPrefix -and !([string]$Item.Current.Name).StartsWith($Name)) { continue }
             if ($Focusable -and !$Item.Current.IsKeyboardFocusable) { continue }
             if ($Item.Current.IsEnabled) { return $Item }
         }
@@ -145,6 +145,7 @@ try {
     Dien 'Nội dung lời đọc' 'Welcome to the studio. First choose a story. Next bring it to life with a clear voice.'
     $Clock = [Diagnostics.Stopwatch]::StartNew()
     Click-Ui (Ui 'Tạo bản nghe thử')
+    Write-Host 'Đã yêu cầu bản nghe thử bằng giọng tại máy.'
     $Apply = Wait-Moc { Find-Ui 'Dùng lời đọc và nới cảnh lên' -ButtonPrefix } 40 'Chưa thấy bản nghe thử để nới cảnh.'
     if ($Apply.Current.Name -notmatch 'lên ([0-9]+) giây$') { throw 'Không đọc được thời lượng đề xuất.' }
     $Seconds = [int]$Matches[1]
