@@ -100,7 +100,7 @@ start_app() {
   kill -0 "$app_pid"
 }
 app_pids() {
-  ps -axo pid=,command= | awk -v cmd="$bin" '{pid=$1; sub(/^[ ]*[0-9]+[ ]+/,""); if ($0==cmd || index($0,cmd " ")==1) print pid}'
+  "$scratch/bam-cua-so" tim-app "$bin"
 }
 quit_app() {
   ui key-app 12 cmd
@@ -179,13 +179,15 @@ done
 codesign --verify --deep --strict "$installed"
 worker="$(hash "$installed/Contents/Resources/worker/dung-app.mjs")"
 [[ "$worker" == '2743e3bf2fe283e1c165ffda4e4abc1f96c51c3efc90c28a508cb81378736085' ]]
+echo 'Đã cài đúng bộ r27 vào thư mục cũ.'
 if [[ "$mode" == 'bam' ]]; then
   for try in {1..80}; do
-    app_pid="$(app_pids)"
+    app_pid="$(app_pids | awk -v old="$old_pid" '$1 != old {print}')"
     if [[ -n "$app_pid" ]]; then break; fi
     sleep .25
   done
   [[ "$app_pid" =~ ^[0-9]+$ && "$app_pid" != "$old_pid" ]]
+  echo "Vèo đã tự mở lại với tiến trình $app_pid."
 else
   [[ -z "$(app_pids)" ]]
   start_app r27

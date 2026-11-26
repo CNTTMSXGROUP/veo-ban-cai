@@ -69,9 +69,20 @@ func key(_ code: CGKeyCode, _ flags: CGEventFlags = [], to pid: pid_t? = nil) {
 }
 
 let args = Array(CommandLine.arguments.dropFirst())
-guard args.count >= 3, let pid = Int32(args[0]), let app = NSRunningApplication(processIdentifier: pid),
-      ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true",
-      AXIsProcessTrusted(), CGPreflightPostEventAccess() else { fail("Thiếu phiên máy thử hoặc quyền thao tác.") }
+guard ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true" else { fail("Thiếu phiên máy thử.") }
+if args.count == 2 && args[0] == "tim-app" {
+    let path = URL(fileURLWithPath: args[1]).resolvingSymlinksInPath().standardizedFileURL.path
+    for app in NSWorkspace.shared.runningApplications where !app.isTerminated {
+        if app.executableURL?.resolvingSymlinksInPath().standardizedFileURL.path == path {
+            print(app.processIdentifier)
+        }
+    }
+    exit(0)
+}
+guard args.count >= 3, let pid = Int32(args[0]), let app = NSRunningApplication(processIdentifier: pid) else {
+    fail("Không tìm thấy tiến trình cửa sổ của Vèo.")
+}
+guard AXIsProcessTrusted(), CGPreflightPostEventAccess() else { fail("Thiếu quyền thao tác trên máy thử.") }
 let command = args[1]
 let value = args[2]
 let root = AXUIElementCreateApplication(pid)
