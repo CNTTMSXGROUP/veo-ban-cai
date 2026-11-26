@@ -37,9 +37,10 @@ function Find-Ui([string]$Name, [switch]$ButtonPrefix, [switch]$TextPrefix, [swi
     if ($App.HasExited -or $App.MainWindowHandle -eq [IntPtr]::Zero) { return }
     try {
         $Window = [System.Windows.Automation.AutomationElement]::FromHandle($App.MainWindowHandle)
-        $Condition = if ($ButtonPrefix -or $TextPrefix) {
-            $Type = if ($ButtonPrefix) { [System.Windows.Automation.ControlType]::Button } else { [System.Windows.Automation.ControlType]::Text }
-            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $Type)
+        $Condition = if ($ButtonPrefix) {
+            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+        } elseif ($TextPrefix) {
+            [System.Windows.Automation.Condition]::TrueCondition
         } else {
             [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $Name)
         }
@@ -140,6 +141,12 @@ function Mo-Nguon {
     Keys '{ENTER}'
     Chon 'Tác vụ của dự án' 1 'Nhắn sửa, gợi ý tít và dịch lời'
 }
+function Model-La([string]$Expected) {
+    $Control = Find-Ui 'Model của dự án' -Focusable
+    if (!$Control) { return $false }
+    $Pattern = $Control.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+    return $Pattern.Current.Value -eq $Expected
+}
 function Luu-Nguon([string]$Provider, [int]$Index, [string]$Model, [string]$Shot) {
     Mo-Nguon
     Chon 'Nguồn của dự án' $Index $Provider
@@ -147,7 +154,7 @@ function Luu-Nguon([string]$Provider, [int]$Index, [string]$Model, [string]$Shot
     (Ui 'Lưu cho dự án').SetFocus()
     Keys '{ENTER}'
     $null = Ui 'Đã lưu cho dự án.'
-    $null = Wait-Moc { Find-Ui "Đang dùng $Provider · $Model." -TextPrefix } 12 'Vèo không hiện model vừa lưu.'
+    $null = Wait-Moc { Model-La $Model } 12 'Vèo không hiện model vừa lưu.'
     $null = Anh $Shot
     (Ui 'Xong').SetFocus()
     Keys '{ENTER}'
@@ -305,7 +312,7 @@ try {
     $null = Wait-Moc { Find-Ui 'Thành phẩm' } 70 'Vèo mở lại chưa thấy MP4.'
     if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm sau khi mở lại.' }
     Mo-Nguon
-    $null = Wait-Moc { Find-Ui 'Đang dùng Antigravity · gemini-qa-cut-high.' -TextPrefix } 15 'Mở lại mất model của dự án.'
+    $null = Wait-Moc { Model-La 'gemini-qa-cut-high' } 15 'Mở lại mất model của dự án.'
     (Ui 'Xong').SetFocus()
     Keys '{ENTER}'
     Mouse-Ui (Ui 'Phát')
