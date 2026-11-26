@@ -6,7 +6,18 @@ dien() {
   ui replace-app "$1"
   sleep 0.25
 }
-chon() { click "$1"; thay "$2" 5; ui click-text "$2"; sleep 0.25; }
+mo_chon() {
+  ui focus-app "$1"
+  ui key-app 125
+  thay "$2" 10
+}
+chon_muc() {
+  ui key-app 115
+  for ((i=0; i<$1; ++i)); do ui key-app 125; done
+  ui key-app 36
+  sleep 0.25
+}
+chon() { mo_chon "$1" "$2"; chon_muc "$3"; }
 thay() { ui wait "$1" "${2:-24}"; }
 thay_gia() {
   thay 'Duyệt nội dung gửi Google Cloud'
@@ -49,12 +60,10 @@ thay 'QA Veo Lite'
 click 'Dựng video'
 thay 'Xuất video' 100
 mo_canh
-click 'Model tạo clip'
-thay 'Veo 3.1 Lite · Thử nghiệm'
+mo_chon 'Model tạo clip' 'Veo 3.1 Lite · Thử nghiệm'
 ui dump 'menu model' > "$proof/cay-tro-nang-menu-model.txt"
 capture '00-menu-model-mac'
-ui click-text 'Veo 3.1 Fast'
-sleep 0.25
+chon_muc 2
 for name in A B; do
   click 'Nhập ảnh'
   ui click-text 'Documents'
@@ -62,15 +71,15 @@ for name in A B; do
   click 'Open'
   thay "Bỏ ảnh Anh Veo $name.png"
 done
-chon 'Model tạo clip' 'Veo 3.1 Lite · Thử nghiệm'
+chon 'Model tạo clip' 'Veo 3.1 Lite · Thử nghiệm' 3
 thay 'Bỏ bớt ảnh để còn tối đa*'
 dien 'Mô tả hình ảnh và chuyển động' 'A slow camera move across the opening frame.'
 capture '01-doi-sang-lite-voi-hai-anh'
-chon 'Model tạo clip' 'Veo 3.1 Fast'
+chon 'Model tạo clip' 'Veo 3.1 Fast' 2
 thay 'Bỏ ảnh Anh Veo A.png'
 thay 'Bỏ ảnh Anh Veo B.png'
 bam 'Bỏ ảnh Anh Veo B.png'
-chon 'Model tạo clip' 'Veo 3.1 Lite · Thử nghiệm'
+chon 'Model tạo clip' 'Veo 3.1 Lite · Thử nghiệm' 3
 thay 'Bỏ ảnh Anh Veo A.png'
 
 bam 'Kết nối Veo qua Google Cloud*'
@@ -79,13 +88,13 @@ dien 'Ngân sách ước tính mỗi ngày (USD)' '0.11'
 bam 'Dùng phiên Google Cloud'
 ui wait 'Phiên Google Cloud creator@example.invalid*' 3 || thay 'creator@example.invalid*'
 echo 'Đã kết nối phiên thử và nhập hạn mức 0,11 USD.'
-chon 'Độ phân giải clip' '1080p'
+chon 'Độ phân giải clip' '1080p' 1
 bam 'Xem trước và duyệt'
 thay 'Ảnh mở đầu sẽ gửi'
 thay_gia '0,32'
 capture '02-lite-1080p-co-tieng'
 bam 'Sửa yêu cầu'
-chon 'Độ phân giải clip' '720p'
+chon 'Độ phân giải clip' '720p' 0
 bam 'Tạo tiếng cùng clip Veo'
 bam 'Xem trước và duyệt'
 thay_gia '0,12'
