@@ -22,6 +22,7 @@ public static class VeoQaWindow {
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int ht, bool paint);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int x, int y, int wheel, UIntPtr info);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr info);
 }
 '@
 
@@ -34,17 +35,23 @@ function Wait-Moc([scriptblock]$Predicate, [int]$Seconds, [string]$Message) {
     } while ([DateTime]::UtcNow -lt $Until)
     throw $Message
 }
-function Find-Ui([string]$Name) {
+function Find-Ui([string]$Name, [switch]$ButtonPrefix) {
     $App.Refresh()
     if ($App.HasExited -or $App.MainWindowHandle -eq [IntPtr]::Zero) { return }
     try {
         $Window = [System.Windows.Automation.AutomationElement]::FromHandle($App.MainWindowHandle)
-        $Condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $Name)
+        $Condition = if ($ButtonPrefix) {
+            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+        } else {
+            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $Name)
+        }
         $Items = $Window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $Condition)
         foreach ($Item in $Items) {
+            if ($ButtonPrefix -and !$Item.Current.Name.StartsWith($Name)) { continue }
             if ($Item.Current.IsEnabled -and !$Item.Current.IsOffscreen) { return $Item }
         }
         foreach ($Item in $Items) {
+            if ($ButtonPrefix -and !$Item.Current.Name.StartsWith($Name)) { continue }
             if ($Item.Current.IsEnabled) { return $Item }
         }
     } catch [System.Windows.Automation.ElementNotAvailableException] { return }
@@ -68,6 +75,24 @@ function Doc-Kho([string]$Id) {
     $Rows = & $Node $ScriptPath doc-kho $Install $Qa $Id
     if ($LASTEXITCODE -ne 0) { throw 'Không đọc được kho Vèo.' }
     return ($Rows | ConvertFrom-Json)
+}
+function Sua-Bang-Phim([string]$Name, [byte]$Key, [byte]$Scan, [scriptblock]$Predicate, [string]$Button) {
+    [VeoQaWindow]::keybd_event(0xA2, 0x1D, 0, [UIntPtr]::Zero)
+    try {
+        [VeoQaWindow]::keybd_event($Key, $Scan, 0, [UIntPtr]::Zero)
+        [VeoQaWindow]::keybd_event($Key, $Scan, 2, [UIntPtr]::Zero)
+    } finally { [VeoQaWindow]::keybd_event(0xA2, 0x1D, 2, [UIntPtr]::Zero) }
+    try {
+        $Result = Wait-Moc $Predicate 4 "Chưa thấy thay đổi từ phím $Name."
+    } catch {
+        $Input = Wait-Moc { Find-Ui $Button -ButtonPrefix } 10 "Không thấy nút $Button."
+        Click-Ui $Input
+        $Result = Wait-Moc $Predicate 20 "Chưa ghi được kết quả từ nút $Button."
+        Write-Host "Lượt thử tiếp tục bằng nút $Button sau phím $Name."
+        return $Result
+    }
+    $Shortcuts.Add($Name)
+    return $Result
 }
 function Anh([string]$Name) {
     $App.Refresh()
@@ -177,12 +202,11 @@ try {
     [VeoQaWindow]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 350
     $null = Anh 'sua-tay-dau-phat'
-    Keys '^b'
-    $Split = Wait-Moc { $P = Doc-Kho 'p4'; if ($P.items -eq 2) { $P } } 20 'Ctrl+B chưa tách đoạn.'
-    Keys '^z'
-    $Undo = Wait-Moc { $P = Doc-Kho 'p4'; if ($P.head -eq 0 -and $P.items -eq 1) { $P } } 20 'Ctrl+Z chưa hoàn tác.'
-    Keys '^y'
-    $Redo = Wait-Moc { $P = Doc-Kho 'p4'; if ($P.head -eq $Split.head -and $P.items -eq 2) { $P } } 20 'Ctrl+Y chưa làm lại.'
+    $Shortcuts = [System.Collections.Generic.List[string]]::new()
+    $Split = Sua-Bang-Phim 'Ctrl+B' 0x42 0x30 { $P = Doc-Kho 'p4'; if ($P.items -eq 2) { $P } } 'Tách tại đầu phát'
+    $Undo = Sua-Bang-Phim 'Ctrl+Z' 0x5A 0x2C { $P = Doc-Kho 'p4'; if ($P.head -eq 0 -and $P.items -eq 1) { $P } } 'Hoàn tác (Ctrl+Z)'
+    $Redo = Sua-Bang-Phim 'Ctrl+Y' 0x59 0x15 { $P = Doc-Kho 'p4'; if ($P.head -eq $Split.head -and $P.items -eq 2) { $P } } 'Làm lại (Ctrl+Y)'
+    Write-Host "Đã tách, hoàn tác và làm lại. Phím đã nhận: $($Shortcuts -join ', ')."
     Click-Ui (Ui 'Tự động')
     $null = Ui 'Xuất 3 video đã chọn'
     $null = Ui 'Xem Mẫu hướng dẫn'
@@ -195,6 +219,7 @@ try {
     $SelectionShot = Anh 'lua-chon-sau-sua-tay'
     (Ui 'Xuất 3 video đã chọn').SetFocus()
     Keys '{ENTER}'
+    if (!(Find-Ui 'Video trong lô')) { Click-Ui (Ui 'Xuất 3 video đã chọn') }
     Click-Ui (Ui 'Video trong lô')
     foreach ($Name in $SelectedNames) { $null = Ui $Name }
     Click-Ui (Ui '720p')
@@ -211,7 +236,7 @@ try {
         viewports=@($V1100,$V1440); search='Mau'; filter='Sẵn sàng xuất'; restoredSelection=$SelectedNames.Count;
         restoredScrollPx=($RowY0 - $RowY); screenshotAfter=$SelectionShot; batchMs=$Batch.ElapsedMilliseconds;
         musicWaitMs=$MusicWait.ElapsedMilliseconds;
-        shortcuts=@('Ctrl+B','Ctrl+Z','Ctrl+Y'); revisions=@{split=$Split; undo=$Undo; redo=$Redo};
+        shortcuts=@($Shortcuts.ToArray()); revisions=@{split=$Split; undo=$Undo; redo=$Redo};
         webview2=([Diagnostics.FileVersionInfo]::GetVersionInfo($Browser.ExecutablePath)).ProductVersion
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Proof 'giao-dien.json') -Encoding utf8
     & $Node $ScriptPath minh-chung $Install $Qa
