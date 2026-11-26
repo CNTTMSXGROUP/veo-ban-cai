@@ -46,8 +46,6 @@ jobs:
           $File = 'kiem-canh-chen-giao-dien.ps1'
           $Script = Join-Path $Qa $File
           Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile $Script
-          $Mjs = 'kiem-tay-nam-canh-chen.mjs'
-          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$Mjs" -OutFile (Join-Path $Qa $Mjs)
           & pwsh -NoProfile -STA -File $Script -Install $Install -Qa $Qa
           if ($LASTEXITCODE -ne 0) { throw 'Ca thao tác cảnh chèn thất bại.' }
       - name: Lưu video và kết quả kiểm

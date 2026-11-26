@@ -93,13 +93,54 @@ function Dien([string]$Name, [string]$Value) {
     Keys $Value
     Keys '{TAB}'
 }
+
+function Drag-Pixels([int]$X, [int]$Y, [int]$Dx, [int]$Dy) {
+    $App.Refresh()
+    $Window = [VeoQaWindow+Rect]::new()
+    if (![VeoQaWindow]::GetWindowRect($App.MainWindowHandle, [ref]$Window)) { throw 'Mất cửa sổ đang thử.' }
+    $X += $Window.L; $Y += $Window.T
+    $null = [VeoQaWindow]::SetCursorPos($X,$Y)
+    [VeoQaWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+    try {
+        for ($i = 1; $i -le 10; $i++) {
+            $null = [VeoQaWindow]::SetCursorPos(($X + [int]($Dx * $i / 10)), ($Y + [int]($Dy * $i / 10)))
+            Start-Sleep -Milliseconds 35
+        }
+    } finally { [VeoQaWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }
+    Start-Sleep -Milliseconds 1250
+}
+function Scan-Box($Image, [int]$Left, [int]$Top, [int]$Right, [int]$Bottom, [switch]$Border) {
+    $X0 = $Right; $Y0 = $Bottom; $X1 = -1; $Y1 = -1
+    for ($y = $Top; $y -le $Bottom; $y += 2) {
+        for ($x = $Left; $x -le $Right; $x += 2) {
+            $c = $Image.GetPixel($x,$y)
+            $ok = if ($Border) {
+                $c.R -gt 205 -and $c.G -lt 178 -and $c.B -lt 150 -and ($c.R - $c.G) -gt 57 -and ($c.G - $c.B) -gt 10
+            } else { $c.R -gt 224 -and $c.G -lt 35 -and $c.B -ge 125 -and $c.B -le 190 }
+            if (!$ok) { continue }
+            $X0 = [Math]::Min($X0,$x); $Y0 = [Math]::Min($Y0,$y)
+            $X1 = [Math]::Max($X1,$x); $Y1 = [Math]::Max($Y1,$y)
+        }
+    }
+    if ($X1 -lt 0) { throw 'Không thấy mẫu màu trong ảnh chụp của cửa sổ.' }
+    [pscustomobject]@{left=$X0;top=$Y0;right=$X1;bottom=$Y1;width=($X1-$X0+1);height=($Y1-$Y0+1)}
+}
+function Scan-Capture([string]$Name, [string]$Mode) {
+    $null = Wait-Moc { Anh $Name } 12 "Chưa chụp được ảnh $Name."
+    $Image = [System.Drawing.Bitmap]::new((Join-Path $Proof "$Name.png"))
+    try {
+        if ($Image.Width -lt 1000 -or $Image.Height -lt 730) { throw 'Cửa sổ kiểm nhỏ hơn bố cục chuẩn.' }
+        if ($Mode -eq 'timeline') {
+            $Thumb = Scan-Box $Image ([int]($Image.Width*.17)) ([int]($Image.Height*.73)) ([int]($Image.Width*.74)) ([int]($Image.Height*.84))
+            $Bar = Scan-Box $Image ($Thumb.left - 3) ($Thumb.top - 3) ([int]($Image.Width*.96)) ($Thumb.bottom + 3) -Border
+            return [pscustomobject]@{left=($Thumb.left - 2);right=$Bar.right;y=[int](($Thumb.top+$Thumb.bottom)/2);width=($Bar.right-$Thumb.left+3)}
+        }
+        Scan-Box $Image ([int]($Image.Width*.29)) ([int]($Image.Height*.105)) ([int]($Image.Width*.64)) ([int]($Image.Height*.52))
+    } finally { $Image.Dispose() }
+}
+
 $Firewall = "Veo-QA-WebView2-$env:GITHUB_RUN_ID"
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $Qa 'webview2'
-$Listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
-$Listener.Start()
-$DevPort = $Listener.LocalEndpoint.Port
-$Listener.Stop()
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$DevPort --remote-debugging-address=127.0.0.1"
 $Shell = New-Object -ComObject WScript.Shell
 $App = $null
 try {
@@ -172,8 +213,27 @@ try {
     Mouse-Ui (Ui 'Đặt')
     $null = Ui 'Khung nhỏ'
     Write-Host 'Đã nhập ảnh và đặt cảnh qua giao diện.'
-    & (Join-Path $Install 'node.exe') (Join-Path $Qa 'kiem-tay-nam-canh-chen.mjs') $DevPort $Proof
-    if ($LASTEXITCODE -ne 0) { throw 'Chưa thu được kết quả thao tác với tay nắm.' }
+
+    $Start = Scan-Capture 'mep-ban-dau' 'timeline'
+    Drag-Pixels ($Start.right-5) $Start.y 28 0
+    $Grow = Scan-Capture 'keo-dai-mep-phai' 'timeline'
+    Drag-Pixels ($Grow.right-5) $Grow.y -28 0
+    $Shrink = Scan-Capture 'thu-ngan-mep-phai' 'timeline'
+    Mouse-Ui (Ui 'Khung nhỏ')
+    Start-Sleep -Milliseconds 700
+    $Before = Scan-Capture 'khung-nho-ban-dau' 'shape'
+    Drag-Pixels ($Before.right+1) ($Before.bottom+1) -19 0
+    $After = Scan-Capture 'keo-goc-theo-ngang' 'shape'
+    $Evidence = [ordered]@{
+        source=$env:VEO_QA_SOURCE;
+        keoDaiDuoc=($Grow.width -gt $Start.width+5);
+        thuNganDuoc=($Shrink.width -lt $Grow.width-5);
+        keoNgangDoiCaChieuCao=($After.height -lt ($Before.height-2) -and $After.width -lt ($Before.width-4));
+        timeline=@($Start,$Grow,$Shrink); shape=@($Before,$After)
+    }
+    $Evidence | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'tai-hien-canh-chen.json')
+    Write-Host ($Evidence | ConvertTo-Json -Depth 6 -Compress)
+    if (!$Evidence.keoDaiDuoc) { throw 'Chưa điều khiển được mép để tái hiện.' }
 } catch {
     if ($App -and !$App.HasExited) { $null = Anh 'loi' }
     $Roots = @($Data, (Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'))
