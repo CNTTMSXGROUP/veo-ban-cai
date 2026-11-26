@@ -169,12 +169,12 @@ click 'Chọn thư mục Drive…'
 ui click-text 'Documents'
 ui click-file 'Drive thử r27*'
 ui click 'Open'
-ui wait 'Thư mục đồng bộ · Drive thử r27' 20
+ui wait 'Drive thử r27' 20
 click 'Video đưa lên Drive'
 ui key-app 125
 ui key-app 36
 click 'Đưa bản dựng lên Drive'
-ui wait 'Đã lưu vào thư mục Drive. Google Drive cho máy tính sẽ tải bản lên.' 90
+ui wait 'Bản sao Drive' 90
 capture '02-gui-ban-sao-drive'
 index="$(find "$sync" -type f -name veo.json)"
 [[ -s "$index" ]]
