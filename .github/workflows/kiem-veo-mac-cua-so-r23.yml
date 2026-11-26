@@ -1,12 +1,22 @@
-name: Kiểm tạo và xuất video trên Vèo Mac Intel r23
+name: Kiểm tạo và xuất video trên Vèo macOS r23
 on:
   push:
     branches: [kiem-veo-mac-cua-so-r23]
 permissions:
   contents: read
 jobs:
-  ve-o-intel:
-    runs-on: macos-15-intel
+  ve-o:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            chip: arm64
+            dmg_sha: d67164dc0be361ef92c85c5b0715c192e0f93e3c97a69d6a51d61df75e590c90
+          - runner: macos-15-intel
+            chip: x64
+            dmg_sha: 77b7b75fe0520d11060916e382c0b8f4ec206558417df36f55eb445c57b2c781
     timeout-minutes: 12
     permissions:
       contents: write
@@ -15,6 +25,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          VEO_QA_DMG_SHA: ${{ matrix.dmg_sha }}
         run: |
           set -euo pipefail
           qa="$RUNNER_TEMP/veo-qa-mac-cua-so"
@@ -23,12 +34,12 @@ jobs:
           for tep in bam-cua-so.swift kiem-cua-so-r23.sh; do
             curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
           done
-          bash "$qa/kiem-cua-so-r23.sh" "$qa" 77b7b75fe0520d11060916e382c0b8f4ec206558417df36f55eb445c57b2c781
+          bash "$qa/kiem-cua-so-r23.sh" "$qa" "$VEO_QA_DMG_SHA"
       - name: Lưu ảnh, video và kết quả
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-cua-so-intel-r23
+          name: veo-cua-so-${{ matrix.chip }}-r23
           path: ${{ runner.temp }}/veo-qa-mac-cua-so/minh-chung
           if-no-files-found: warn
           retention-days: 30

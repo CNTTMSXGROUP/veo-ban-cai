@@ -145,7 +145,11 @@ click 'Phát'
 ui wait 'Dừng' 8
 capture '04-phat-sau-khi-mo-lai'
 click 'Dừng'
-click 'Lịch sử xuất'
+click 'Sửa tay'
+if ! ui click 'Lịch sử xuất' 5; then
+  click 'Hệ thống'
+  click 'Lịch sử xuất'
+fi
 ui wait "$(basename "$output")" 15
 capture '05-lich-su'
 [[ "$(shasum -a 256 "$output" | awk '{print $1}')" == "$hash" ]]
