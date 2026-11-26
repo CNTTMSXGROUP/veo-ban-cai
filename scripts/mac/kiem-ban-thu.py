@@ -34,7 +34,7 @@ def digest(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
-dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r6.dmg"
+dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r7.dmg"
 run("/usr/bin/hdiutil","attach",dmg,"-mountpoint",mount,"-readonly","-nobrowse","-noautoopen")
 try:
     run("/usr/bin/ditto",mount / installed.name,installed)
@@ -46,7 +46,9 @@ identifier = plist["CFBundleIdentifier"]
 assert re.fullmatch(r"vn\.msxgroup\.phongdung\.qa\.(macarm|intel)20261126r5",identifier)
 binary = installed / "Contents/MacOS" / plist["CFBundleExecutable"]
 resources = installed / "Contents/Resources"
-data = Path.home() / "Library/Application Support" / identifier
+home = root / "home-qa" if arch == "arm64" else Path.home()
+home.mkdir(exist_ok=True)
+data = home / "Library/Application Support" / identifier
 runtime = data / ("phan-chay-" + ("aarch64" if arch == "arm64" else "x86_64"))
 assert not data.exists(), "Cần kho kiểm thử trống"
 run("/usr/bin/codesign","--verify","--deep","--strict",installed)
@@ -125,7 +127,7 @@ class Mirror(http.server.BaseHTTPRequestHandler):
         return self.respond(200,b"{}")
 
 def start_app():
-    env = {**os.environ,"PATH":"/usr/bin:/bin:/usr/sbin:/sbin",
+    env = {**os.environ,"HOME":str(home),"CFFIXED_USER_HOME":str(home),"PATH":"/usr/bin:/bin:/usr/sbin:/sbin",
            "VEO_PHAN_CHAY_GOC":"http://127.0.0.1:59343/runtime",
            "DUNG_KHO_NHAC":str(root/"nhac"),"DUNG_CHEP_LOI":"may"}
     for key in ("DUNG_FFMPEG","DUNG_FFPROBE","DUNG_GROQ_KEYS","DUNG_HYPERFRAMES_DIR","DUNG_DATA"):
@@ -157,7 +159,7 @@ def await_result(proc, item, seconds):
     raise TimeoutError(f"Chưa thấy {item} của app")
 
 def make_api(boot):
-    def api(path, body=None):
+    def api(path, body=None, timeout=75):
         headers = {"x-dung-token":boot["token"]}
         data = None
         if body is not None:
@@ -165,7 +167,7 @@ def make_api(boot):
             data = json.dumps(body,ensure_ascii=False).encode()
         request = Request(f"http://127.0.0.1:{boot['port']}/api/"+path,data,headers)
         try:
-            with urlopen(request,timeout=75) as result:
+            with urlopen(request,timeout=timeout) as result:
                 return json.load(result)
         except HTTPError as error:
             raise RuntimeError(f"{path}: HTTP {error.code} {error.read(1200).decode(errors='replace')}") from None
@@ -234,6 +236,9 @@ def test_cold(boot):
     sizes,aac=inspect_exports(job["files"])
     peaks=[i for i in job["checks"] if i["name"].endswith("Đỉnh tiếng")]
     assert len(peaks)==4 and all(p["ok"] for p in peaks)
+    base = {"retry":True,"shapes":sizes,"audioHash":aac,"peakChecks":len(peaks)}
+    (evidence/"kiem-co-ban.json").write_text(json.dumps(base,ensure_ascii=False,indent=2)+"\n")
+    print("cold: đổi khung sau lỗi và ba tỷ lệ cùng AAC đã đạt",flush=True)
     scenes=[{"text":"Cảnh một","seconds":2},{"text":"Cảnh hai","seconds":2}]
     motion = False
     if use_renderer:
@@ -241,7 +246,10 @@ def test_cold(boot):
         assert status["engine"] and status["browser"] and status["three"] and status["gsap"], status
         spec={"version":1,"id":"chu-dong","title":"Góc đọc sách","subtitle":"","accent":"#ffc16e",
               "seconds":2,"speed":1,"chuDong":{"kieu":"nay","theo":"tu","treMs":50,"doNay":1.8}}
-        preview=api("do-hoa/xem",{"canvas":"ngang","spec":spec})
+        begin=time.monotonic()
+        print("cold: bắt đầu dựng bản xem chữ động",flush=True)
+        preview=api("do-hoa/xem",{"canvas":"ngang","spec":spec},timeout=235)
+        print(f"cold: dựng bản xem trong {time.monotonic()-begin:.2f}s",flush=True)
         assert preview["key"]
         scenes[0]={"text":"","seconds":2,"hinh":{"fit":"vua","startSec":0,"useAudio":False,
                     "asset":{"doHoaMoi":spec,"name":spec["title"]}}}
@@ -255,7 +263,7 @@ def test_cold(boot):
     picture,audio=media(video)
     assert picture["codec_name"]=="h264" and picture["nb_frames"]=="120" and audio["codec_name"]=="aac"
     shutil.copy2(video,evidence/"Goc-doc-sach.mp4")
-    return {"retry":True,"shapes":sizes,"audioHash":aac,"peakChecks":len(peaks),"storyFrames":120,"motion":motion,
+    return {**base,"storyFrames":120,"motion":motion,
             "project":story["id"],"video":video,"videoHash":digest(Path(video))}
 
 with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Mirror) as server:
