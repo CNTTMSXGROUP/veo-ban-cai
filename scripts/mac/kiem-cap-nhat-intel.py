@@ -25,7 +25,7 @@ assert old_app["CFBundleIdentifier"] == "vn.msxgroup.phongdung.qa.intel20261126r
 binary = app/"Contents/MacOS"/old_app["CFBundleExecutable"]
 data = home/"Library/Application Support"/old_app["CFBundleIdentifier"]
 runtime = data/"phan-chay-x86_64"
-archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r10.app.tar.gz"
+archive = root/"Veo-QA-Intel-cap-nhat_0.3.24-r11.app.tar.gz"
 sig = archive.with_name(archive.name+".sig").read_text().strip()
 feed = {"version":"0.3.24","notes":"Kiểm thử tự cập nhật","platforms":
         {"darwin-x86_64":{"signature":sig,"url":"http://127.0.0.1:59343/ban-moi.tar.gz"}}}
