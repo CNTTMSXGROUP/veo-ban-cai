@@ -191,6 +191,8 @@ printf '%s' 'Xuat lai r27' | pbcopy
 ui paste-app 'Tên tệp'
 ui key-app 48
 click 'Xuất 1 tệp'
+ui wait 'Đang làm · 1' 120
+ui enter-app 'Đang làm · 1'
 ui wait 'Thành phẩm' 120
 new_out="$(find "$data/du-an" -path '*/xuat/*.mp4' -type f ! -path "$old_out")"
 [[ -f "$new_out" ]]
@@ -204,8 +206,7 @@ done
 cmp "$proof/video-0.3.23.json" "$proof/video-r27.json"
 quit_app
 start_app mo-lai-r27
-ready 'Lưu trữ · 1'
-ui enter-app 'Lưu trữ · 1'
+ready 'Thành phẩm'
 play '05-phat-mp4-r27-sau-khi-mo-lai'
 [[ "$(hash "$new_out")" == "$new_hash" && "$(hash "$old_out")" == "$old_hash" ]]
 quit_app
