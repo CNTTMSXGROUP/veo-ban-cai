@@ -195,6 +195,15 @@ function Test-Palette([string]$Label, $Expected, [string]$ExportLabel) {
     return $Output.FullName
 }
 
+function Bo-MauMacDinh([switch]$BatBuoc) {
+    Click-Ui (Ui 'Cả video')
+    $Remove = if ($BatBuoc) { Ui 'Bỏ màu và chuyển động cả video' } else { Find-Ui 'Bỏ màu và chuyển động cả video' }
+    if ($Remove) {
+        Click-Ui $Remove
+        $null = Wait-Moc { !(Find-Ui 'Bỏ màu và chuyển động cả video') } 15 'Bộ màu vẫn đang áp lên video.'
+    }
+}
+
 $Firewall = "Veo-QA-WebView2-$env:GITHUB_RUN_ID"
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $Qa 'webview2'
 $Shell = New-Object -ComObject WScript.Shell
@@ -265,6 +274,10 @@ try {
     $null = Ui 'hlg-hong.mp4'
     Click-Ui (Ui 'Dựng video')
     $null = Wait-Moc { Find-Ui 'Xuất video' } 120 'Storyboard thử chưa dựng.'
+    Click-Ui (Ui 'Sửa tay')
+    Click-Ui (Ui 'Hiệu ứng hình')
+    Bo-MauMacDinh -BatBuoc
+    Mouse-Ui (Ui 'Tự động')
     $null = Test-Palette 'story-hlg' $Hlg.rgb 'Xuất video'
 
     Click-Ui (Ui 'Sửa tay')
@@ -293,6 +306,8 @@ try {
     $null = Wait-Moc { Find-Ui 'Xuất video' } 150 'Clip phông xanh chưa dựng xong.'
     Click-Ui (Ui 'Sửa tay')
     Click-Ui (Ui 'Hiệu ứng hình')
+    Bo-MauMacDinh
+    Click-Ui (Ui 'Đoạn này')
     Dien 'Mã màu phông' '#00ff00'
     $null = Ui 'Độ gần màu phông'
     Click-Ui (Ui 'Chọn ảnh hoặc video nền')
