@@ -11,9 +11,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-26
-            chip: arm64
-            dmg_sha: 31b3c396b08ab6db7f60047c039758f355c014e8b9728711ff4df024117723f6
+          - runner: macos-15-intel
+            chip: x64
+            dmg_sha: f904558aaa88ab2bd8341646cf2157fddd02222f045982fb5c45d92bb46926e3
     timeout-minutes: 12
     permissions:
       contents: write
