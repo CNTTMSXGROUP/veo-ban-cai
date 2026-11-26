@@ -83,7 +83,7 @@ curl -fsS 'http://127.0.0.1:54325/' > /dev/null
 cp /etc/hosts "$scratch/hosts"
 hosts_copied=true
 printf '%s\n' '127.0.0.1 srrywxpcxqxuglvsjywg.supabase.co' '::1 srrywxpcxqxuglvsjywg.supabase.co' | sudo tee -a /etc/hosts >/dev/null
-if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+if [[ "${VEO_QA_REVISION:-}" == r3[23] ]]; then
   printf '%s\n' '127.0.0.1 us-central1-aiplatform.googleapis.com' '::1 us-central1-aiplatform.googleapis.com' | sudo tee -a /etc/hosts >/dev/null
 fi
 sudo dscacheutil -flushcache
@@ -103,7 +103,7 @@ printf '[]\n' > "$scratch/nhac/kho-nhac.json"
 swiftc "$qa/bam-cua-so.swift" -o "$scratch/bam-cua-so"
 start_app() {
   # Cảnh thử không có lời. Tách tải mô hình ra khỏi ca tái hiện cửa sổ trắng.
-  if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+  if [[ "${VEO_QA_REVISION:-}" == r3[23] ]]; then
     export DUNG_GCLOUD="$scratch/gcloud" NODE_EXTRA_CA_CERTS="$scratch/cloud-cert.pem" NODE_USE_ENV_PROXY=1
   fi
   VEO_PHAN_CHAY_GOC='http://127.0.0.1:54325' DUNG_KHO_NHAC="$scratch/nhac" DUNG_CHEP_LOI=may DUNG_WHISPER_MODEL="$scratch/khong-dung-chep-loi.bin" \
@@ -125,7 +125,7 @@ await_stop() {
   return 1
 }
 
-if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+if [[ "${VEO_QA_REVISION:-}" == r3[23] ]]; then
   cat > "$scratch/gcloud" <<'GCLOUD'
 #!/bin/sh
 case "$1 $2" in
@@ -156,7 +156,7 @@ for try in {1..45}; do
   sleep 1
 done
 jq -e --slurpfile source "$resources/phan-chay.json" '. == ($source[0].items | map({key:.ten,value:.sha256}) | from_entries)' "$runtime/.da-cai.json" > /dev/null
-if [[ "${VEO_QA_REVISION:-}" == r32 ]]; then
+if [[ "${VEO_QA_REVISION:-}" == r3[23] ]]; then
   # Chạy ca riêng trên đúng app và bộ chạy vừa cài từ DMG.
   source "$qa/kiem-veo-lite-r32.sh"
   exit

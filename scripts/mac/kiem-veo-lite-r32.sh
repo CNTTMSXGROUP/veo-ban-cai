@@ -6,8 +6,12 @@ dien() {
   ui replace-app "$1"
   sleep 0.25
 }
-chon() { click "$1"; click "$2"; }
+chon() { click "$1"; thay "$2" 5; click "$2"; }
 thay() { ui wait "$1" "${2:-24}"; }
+thay_gia() {
+  thay 'Duyệt nội dung gửi Google Cloud'
+  ui wait "Ước tính $1*" 2 || thay "$1*"
+}
 mo_canh() { click 'Storyboard'; click 'Tạo clip bằng AI'; thay 'Model tạo clip'; }
 mo_lai() {
   ui key-app 12 cmd
@@ -45,7 +49,11 @@ thay 'QA Veo Lite'
 click 'Dựng video'
 thay 'Xuất video' 100
 mo_canh
-chon 'Model tạo clip' 'Veo 3.1 Fast'
+click 'Model tạo clip'
+thay 'Veo 3.1 Lite · Thử nghiệm'
+ui dump 'menu model' > "$proof/cay-tro-nang-menu-model.txt"
+capture '00-menu-model-mac'
+click 'Veo 3.1 Fast'
 for name in A B; do
   click 'Nhập ảnh'
   ui click-text 'Documents'
@@ -68,25 +76,28 @@ bam 'Kết nối Veo qua Google Cloud*'
 dien 'ID dự án Google Cloud' 'veo-lite-qa'
 dien 'Ngân sách ước tính mỗi ngày (USD)' '0.11'
 bam 'Dùng phiên Google Cloud'
-thay 'Phiên Google Cloud creator@example.invalid*'
+ui wait 'Phiên Google Cloud creator@example.invalid*' 3 || thay 'creator@example.invalid*'
+echo 'Đã kết nối phiên thử và nhập hạn mức 0,11 USD.'
 chon 'Độ phân giải clip' '1080p'
 bam 'Xem trước và duyệt'
 thay 'Ảnh mở đầu sẽ gửi'
-thay 'Ước tính 0,32*'
+thay_gia '0,32'
 capture '02-lite-1080p-co-tieng'
 bam 'Sửa yêu cầu'
 chon 'Độ phân giải clip' '720p'
 bam 'Tạo tiếng cùng clip Veo'
 bam 'Xem trước và duyệt'
-thay 'Ước tính 0,12*'
+thay_gia '0,12'
 thay 'Vượt ngân sách ước tính còn lại hôm nay.'
 [[ ! -e "$proof/luot-google-cloud.jsonl" ]]
 capture '03-chan-vuot-ngan-sach'
 
+bam 'Sửa yêu cầu'
 dien 'Ngân sách ước tính mỗi ngày (USD)' '0.12'
 bam 'Dùng phiên Google Cloud'
+thay 'Kết nối Veo qua Google Cloud · còn 0,12*'
 bam 'Xem trước và duyệt'
-thay 'Ước tính 0,12*'
+thay_gia '0,12'
 bam 'Gửi tạo cảnh'
 thay 'Có biên nhận, có thể tải lại*' 55
 capture '04-giu-ma-sau-loi-503'
@@ -128,6 +139,6 @@ capture '06-phat-thanh-pham-sau-khi-mo-lai'
 jq -es 'length == 3 and .[2].action == "poll" and .[2].status == 200 and .[1].operation == .[2].operation' "$proof/luot-google-cloud.jsonl" > /dev/null
 jq -n --arg os "$(sw_vers -productVersion)" --arg chip "$arch" --arg output "$hash" --arg worker "$worker" \
   --arg dmg "$expected_dmg" --slurpfile cloud "$proof/luot-google-cloud.jsonl" --slurpfile video "$proof/mp4.json" \
-  '{macOS:$os,chip:$chip,source:"dfd3616009fdc55e247855e652e270921b2526b9",workerSha256:$worker,dmgSha256:$dmg,
+  '{macOS:$os,chip:$chip,source:"a5c83fc344e43d056eb2cb191f5365bbb759f2f1",workerSha256:$worker,dmgSha256:$dmg,
     cloudFixture:true,budgetBlocked:true,quote720SilentCents:12,quote1080WithAudioCents:32,restoredSameReceipt:true,playedAfterRestart:true,
     outputSha256:$output,video:$video[0].streams[0],cloud:$cloud}' | tee "$proof/ket-qua.json"
