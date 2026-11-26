@@ -34,7 +34,7 @@ def digest(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
-dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r5.dmg"
+dmg = root / f"Veo-QA-mac-{arch}_0.3.24-r6.dmg"
 run("/usr/bin/hdiutil","attach",dmg,"-mountpoint",mount,"-readonly","-nobrowse","-noautoopen")
 try:
     run("/usr/bin/ditto",mount / installed.name,installed)
@@ -90,6 +90,7 @@ class Mirror(http.server.BaseHTTPRequestHandler):
         if not path.startswith("/runtime/") or filename not in {*core,renderer["tep"]}:
             return self.respond(404)
         requests.append((phase,filename))
+        print(f"{phase}: tải {filename}",flush=True)
         if phase == "warm":
             return self.respond(503)
         file = assets / filename
@@ -114,12 +115,13 @@ class Mirror(http.server.BaseHTTPRequestHandler):
             shutil.copyfileobj(stream,self.wfile)
     def do_POST(self):
         endpoint = self.path.removeprefix("/qa/")
-        if endpoint not in ("boot","failure","renderer"):
+        if endpoint not in ("starting","worker","boot","failure","renderer"):
             return self.respond(404)
         count = int(self.headers.get("Content-Length","0"))
         if count > 16_384:
             return self.respond(400)
         received[endpoint] = json.loads(self.rfile.read(count))
+        print(f"{phase}: {endpoint}",flush=True)
         return self.respond(200,b"{}")
 
 def start_app():
@@ -280,6 +282,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Mirror) as server:
                 if use_renderer:
                     result["rendererInstallMs"]=await_result(proc,"renderer",150)["ms"]
                 result.update(test_cold(boot))
+                print("cold: đã dựng và xuất cả hai ca",flush=True)
             else:
                 p=make_api(boot)("projects/"+result["project"])["project"]
                 assert p["exportPath"]==result["video"] and digest(Path(result["video"]))==result["videoHash"]
