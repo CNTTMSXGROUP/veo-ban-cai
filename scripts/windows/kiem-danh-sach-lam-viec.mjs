@@ -21,6 +21,8 @@ const ffOptions = { encoding: 'utf8', windowsHide: true, timeout: 30_000 };
 
 async function taoKho() {
   const clip = join(qa, 'nguon-tong-hop.mp4');
+  const noMusic = join(qa, 'nhac-trong');
+  await mkdir(noMusic);
   execFileSync(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=360x640:r=30:d=4',
     '-f', 'lavfi', '-i', 'sine=f=440:r=48000:d=4', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip], ffOptions);
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('DUNG_') && key.toUpperCase() !== 'PATH'));
@@ -28,6 +30,7 @@ async function taoKho() {
     cwd: worker, stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true, env: {
       ...env, PATH: [install, join(process.env.SystemRoot, 'System32'), process.env.SystemRoot].join(delimiter),
       DUNG_DATA: data, DUNG_FFMPEG: ffmpeg, DUNG_FFPROBE: ffprobe, DUNG_CHEP_LOI: 'may', DUNG_FONTS: join(worker, 'fonts'),
+      DUNG_KHO_NHAC: noMusic, DUNG_WHISPER_MODEL: join(qa, 'chua-can-chep-loi.bin'),
     },
   });
   const exited = once(child, 'exit');
@@ -78,6 +81,22 @@ function snapshot() {
   } finally { db.close(); }
 }
 
+async function kiemKhoNhac() {
+  const db = new DatabaseSync(join(data, 'phong-dung.db'), { readOnly: true });
+  try {
+    const songs = db.prepare("SELECT name, file FROM songs WHERE origin LIKE 'kho:%'").all();
+    const unicode = songs.filter((song) => /[^\x00-\x7F]/.test(song.name));
+    assert.equal(songs.length, 110, 'Thiếu bài trong kho nhạc tải lúc mở lần đầu');
+    assert.equal(unicode.length, 103, 'Thiếu bài có tên tiếng Việt có dấu');
+    for (const song of songs) assert((await stat(song.file)).size > 0, 'Thiếu tệp nhạc đã nạp');
+    const { streams } = JSON.parse(execFileSync(ffprobe, ['-v', 'error', '-of', 'json',
+      '-show_entries', 'stream=codec_type,codec_name', unicode[0].file], ffOptions));
+    assert(streams.some((stream) => stream.codec_type === 'audio'));
+    execFileSync(ffmpeg, ['-v', 'error', '-i', unicode[0].file, '-t', '1', '-f', 'null', '-'], ffOptions);
+    return { songs: songs.length, unicode: unicode.length, playedCodec: streams[0].codec_name };
+  } finally { db.close(); }
+}
+
 async function minhChung() {
   const projects = snapshot();
   assert.equal(projects.length, names.length);
@@ -102,8 +121,8 @@ async function minhChung() {
   assert.equal(ui.revisions.undo.items, 1);
   assert.equal(ui.revisions.redo.items, 2);
   await writeFile(join(proof, 'ket-qua.json'), JSON.stringify({
-    version: '0.3.24', commit: 'c885057', os: process.env.VEO_QA_OS, workerSha256: process.env.VEO_QA_WORKER_SHA,
-    projects: projects.length, selectedFolders: 2, ui, rendered,
+    version: '0.3.24', commit: process.env.VEO_QA_SOURCE, os: process.env.VEO_QA_OS, workerSha256: process.env.VEO_QA_WORKER_SHA,
+    projects: projects.length, selectedFolders: 2, music: await kiemKhoNhac(), ui, rendered,
   }, null, 2) + '\n');
   console.log('Đã giữ danh sách và xuất đúng 3/10 video từ hai thư mục trong WebView2.');
 }

@@ -18,8 +18,8 @@ jobs:
         run: |
           $Qa = Join-Path $env:RUNNER_TEMP 'veo-ui-qa'
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
-          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r16.exe'
-          $InstallerHash = 'c501281c680b9c4b3316eb4179d0389c172372d9c6d685caed88668342050d28'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r17.exe'
+          $InstallerHash = '86021efdacbd262f9ef2696a7f886c73e9744dabdb98863405db20537ee255db'
           $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
           if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
           gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
@@ -34,14 +34,15 @@ jobs:
           foreach ($Name in 'kiem-danh-sach-lam-viec.mjs','kiem-danh-sach-lam-viec.ps1','danh-sach-lam-viec-plan.json') {
             Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$Name" -OutFile (Join-Path $Qa $Name)
           }
-          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r16.exe'
+          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r17.exe'
           $P = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
           if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài Vèo quá thời gian.' }
           $AppFile = Join-Path $Install 'msx-phong-dung.exe'
           $Worker = Join-Path $Install 'worker/dung-app.mjs'
           if ($P.ExitCode -ne 0 -or (Get-Item $AppFile).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản Vèo đã cài.' }
           $env:VEO_QA_WORKER_SHA = (Get-FileHash $Worker).Hash.ToLowerInvariant()
-          if ($env:VEO_QA_WORKER_SHA -ne 'a9c9a97b08a7ab7fedd2af7b284de901f37c9b01a2872c30fdc25db51579d51e') { throw 'Sai mã phần dựng.' }
+          if ($env:VEO_QA_WORKER_SHA -ne '600fd2dd5c27650c0ac46ec3d5d4692e6e08092db75597ad0da45f1efe644865') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = '59ea9a4ae0379bedaa41f05265e90ce432289701'
           $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
           $env:DUNG_CHEP_LOI = 'may'
           $env:NO_PROXY = '127.0.0.1,localhost'
@@ -55,7 +56,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-windows-webview2-c885057
+          name: veo-windows-webview2-59ea9a4
           path: ${{ runner.temp }}/veo-ui-qa/minh-chung
           if-no-files-found: warn
           retention-days: 30

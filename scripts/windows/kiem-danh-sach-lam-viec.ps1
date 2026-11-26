@@ -21,6 +21,7 @@ public static class VeoQaWindow {
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out Rect r);
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int ht, bool paint);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int x, int y, int wheel, UIntPtr info);
 }
 '@
 
@@ -131,8 +132,19 @@ try {
     } 65 'Không mở được kho thử trên Vèo.'
     if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm cửa sổ thử.' }
     if ($Skip = Find-Ui 'Dùng ngay') { Click-Ui $Skip }
+    $null = Ui 'Vèo 0.3.24'
+    $TaiNguyen = Join-Path $Data 'tai-nguyen'
+    $MusicWait = [Diagnostics.Stopwatch]::StartNew()
+    $null = Wait-Moc {
+        (Test-Path (Join-Path $TaiNguyen 'kho-nhac-xong')) -and
+            !(Test-Path (Join-Path $TaiNguyen 'kho-tam')) -and
+            !(Test-Path (Join-Path $TaiNguyen 'kho-nhac-co-san.tar'))
+    } 210 'Kho nhạc tải sẵn chưa nạp xong hoặc còn tệp giải nén.'
+    $MusicWait.Stop()
+    Write-Host 'Đã tải và nạp kho nhạc ở lần mở đầu.'
     $V1440 = Viewport 1440 900
     $V1100 = Viewport 1100 700
+    $null = Ui 'Cách phát · J K L tua · Ctrl+B tách · Ctrl+Z hoàn tác'
     Write-Host 'Đã mở danh sách và đo hai kích thước cửa sổ.'
     Click-Ui (Ui 'Lọc trạng thái video')
     Click-Ui (Ui 'Lỗi')
@@ -148,14 +160,19 @@ try {
     foreach ($Name in $SelectedNames) { Click-Ui (Ui "Chọn $Name") }
     $null = Ui 'Xuất 3 video đã chọn'
     Click-Ui (Ui 'Xem Mẫu hướng dẫn')
-    $RowY0 = (Ui 'Xem Mẫu hướng dẫn').Current.BoundingRectangle.Y
-    (Ui 'Xem Mẫu màn hình').SetFocus()
-    Start-Sleep -Milliseconds 300
-    $RowY = (Ui 'Xem Mẫu hướng dẫn').Current.BoundingRectangle.Y
-    if ($RowY -ge $RowY0) { throw 'Chưa cuộn được danh sách thử.' }
+    $Anchor = Ui 'Xem Mẫu hướng dẫn'
+    $RowY0 = $Anchor.Current.BoundingRectangle.Y
+    $Point = $Anchor.GetClickablePoint()
+    [System.Windows.Forms.Cursor]::Position = [System.Drawing.Point]::new([int]$Point.X, [int]$Point.Y)
+    [VeoQaWindow]::mouse_event(0x0800, 0, 0, -480, [UIntPtr]::Zero)
+    $RowY = Wait-Moc {
+        $Y = (Ui 'Xem Mẫu hướng dẫn').Current.BoundingRectangle.Y
+        if ([double]::IsFinite($Y) -and $Y -lt $RowY0) { $Y }
+    } 5 'Chưa cuộn được danh sách thử.'
     Click-Ui (Ui 'Sửa tay')
     (Ui 'Phụ đề khi xem').SetFocus()
     Keys '{HOME}'
+    Start-Sleep -Milliseconds 250
     Keys '+{RIGHT}'
     Start-Sleep -Milliseconds 350
     Keys '^b'
@@ -191,6 +208,7 @@ try {
     @{
         viewports=@($V1100,$V1440); search='Mau'; filter='Sẵn sàng xuất'; restoredSelection=$SelectedNames.Count;
         restoredScrollPx=($RowY0 - $RowY); screenshotAfter=$SelectionShot; batchMs=$Batch.ElapsedMilliseconds;
+        musicWaitMs=$MusicWait.ElapsedMilliseconds;
         shortcuts=@('Ctrl+B','Ctrl+Z','Ctrl+Y'); revisions=@{split=$Split; undo=$Undo; redo=$Redo};
         webview2=([Diagnostics.FileVersionInfo]::GetVersionInfo($Browser.ExecutablePath)).ProductVersion
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Proof 'giao-dien.json') -Encoding utf8
