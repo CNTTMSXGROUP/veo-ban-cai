@@ -130,6 +130,10 @@ for try in {1..45}; do
   sleep 1
 done
 jq -e --slurpfile source "$resources/phan-chay.json" '. == ($source[0].items | map({key:.ten,value:.sha256}) | from_entries)' "$runtime/.da-cai.json" >/dev/null
+if [[ -n "${VEO_QA_DRIVE_NHAN:-}" ]]; then
+  source "$qa/kiem-drive-nhan-lai-r33-mac.sh"
+  exit
+fi
 mkdir -p "$HOME/Documents"
 fixture="$HOME/Documents/Nguon Quay Drive.mp4"
 sync="$HOME/Documents/Drive thử r33"

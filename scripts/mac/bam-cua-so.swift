@@ -46,11 +46,10 @@ func find(_ root: AXUIElement, _ expected: String, command: String) -> AXUIEleme
         let role = attr(element, "AXRole") as? String
         let interactive = role != "AXStaticText" && role != "AXGroup" && role != "AXImage" && role != "AXWindow"
         let looksClickable = command == "click-text" ? role == "AXStaticText" : (interactive || command == "click-file")
-        if match, looksClickable, ["enter-app", "paste-app", "space"].contains(command),
-           (attr(element, "AXEnabled") as? Bool) != false { return element }
-        if match, looksClickable,
-           (attr(element, "AXEnabled") as? Bool) != false, let box = rect(element),
-           desktop.contains(CGPoint(x: box.midX, y: box.midY)) { return element }
+        if match, looksClickable, (attr(element, "AXEnabled") as? Bool) != false {
+            if ["paste-app", "replace-app", "enter-app", "focus-app", "space"].contains(command) { return element }
+            if let box = rect(element), desktop.contains(CGPoint(x: box.midX, y: box.midY)) { return element }
+        }
         queue.append(contentsOf: children(element))
     }
     return nil
@@ -78,7 +77,14 @@ let command = args[1]
 let value = args[2]
 let root = AXUIElementCreateApplication(pid)
 
-if command == "dump" {
+if command == "fit" {
+    let screen = CGDisplayBounds(CGMainDisplayID())
+    guard let element = children(root).first(where: { attr($0, "AXRole") as? String == "AXWindow" }),
+          let window = rect(element) else { fail("Không đọc được kích thước cửa sổ.") }
+    print("Màn hình \(screen) · cửa sổ \(window)")
+    guard screen.contains(window) else { fail("Cửa sổ vượt khỏi màn hình.") }
+} else if command == "dump" {
+    print("Màn hình thử \(CGDisplayBounds(CGMainDisplayID()))")
     var queue = children(root)
     var i = 0
     while i < queue.count && i < 1500 {
@@ -102,11 +108,12 @@ if command == "dump" {
     if shot.terminationStatus != 0 { fail("Không chụp được ảnh cửa sổ.") }
 } else if command == "key" || command == "key-app" {
     if !app.isActive { _ = app.activate(options: []); Thread.sleep(forTimeInterval: 0.2) }
-    let flags: CGEventFlags = args.count >= 4 && args[3] == "cmd" ? .maskCommand : []
+    let shortcut = args.count >= 4 ? args[3] : ""
+    let flags: CGEventFlags = shortcut == "cmd" ? .maskCommand : (shortcut == "ctrl-cmd" ? [.maskControl, .maskCommand] : [])
     guard let code = UInt16(value) else { fail("Sai mã phím.") }
     key(code, flags, to: command == "key-app" ? pid : nil)
 } else {
-    guard ["wait", "click", "click-text", "click-file", "space", "click-app", "paste-app", "enter-app"].contains(command) else {
+    guard ["wait", "click", "click-text", "click-file", "space", "click-app", "paste-app", "replace-app", "enter-app", "focus-app"].contains(command) else {
         fail("Thao tác thử không hợp lệ.")
     }
     let until = Date().addingTimeInterval(args.count >= 4 ? Double(args[3]) ?? 15 : 15)
@@ -116,14 +123,18 @@ if command == "dump" {
         if matched == nil { Thread.sleep(forTimeInterval: 0.25) }
     } while matched == nil && Date() < until
     guard let element = matched else { fail("Không thấy điều khiển \(value).") }
-    if ["paste-app", "enter-app", "space"].contains(command) {
+    if ["paste-app", "replace-app", "enter-app", "focus-app", "space"].contains(command) {
         guard AXUIElementSetAttributeValue(element, "AXFocused" as CFString, kCFBooleanTrue) == .success else {
             fail("Không đặt được tiêu điểm ở \(value).")
         }
         Thread.sleep(forTimeInterval: 0.25)
         switch command {
         case "paste-app": key(9, .maskCommand, to: pid)
+        case "replace-app":
+            key(0, .maskCommand, to: pid)
+            key(9, .maskCommand, to: pid)
         case "enter-app": key(36, to: pid)
+        case "focus-app": break
         default: key(49)
         }
         exit(0)

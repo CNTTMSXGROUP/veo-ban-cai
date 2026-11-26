@@ -1,0 +1,42 @@
+name: Mở bản gửi lại từ Windows qua Google Drive trên Vèo Mac r33
+on:
+  push:
+    branches: [kiem-veo-r33-drive-nhan-lai]
+permissions:
+  contents: read
+jobs:
+  nhan:
+    runs-on: macos-26
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Mở bản sao, ngắt thư mục và phát lại MP4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_QA_DRIVE_RETURN_SHA: 48c10d24639cafb3083bb17f476d7f930173641385780858730e9eedbd06f1e0
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-cua-so"
+          mkdir -p "$qa/tu-drive"
+          tag=veo-qa-windows-20261126-7bc6cdf
+          bundle=Veo-QA-r33-q8l5-Windows-tai-tu-Google-Drive.zip
+          [[ "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern "$bundle" --dir "$qa"
+          printf '%s  %s\n' "$VEO_QA_DRIVE_RETURN_SHA" "$qa/$bundle" | shasum -a 256 -c
+          unzip -q "$qa/$bundle" -d "$qa/tu-drive"
+          export VEO_QA_DRIVE_NHAN="$qa/tu-drive"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-drive-r33-mac.sh kiem-drive-nhan-lai-r33-mac.sh; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-drive-r33-mac.sh" "$qa" 05199dcd3d6e496dc8e19ad20050949b4a43e5a55e07a557b1ca36528cafa076
+      - name: Lưu kết quả máy Mac nhận lại
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r33-google-drive-mac-nhan
+          path: ${{ runner.temp }}/veo-qa-mac-cua-so/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
