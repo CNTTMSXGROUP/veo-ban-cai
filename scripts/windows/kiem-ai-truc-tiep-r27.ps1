@@ -174,10 +174,15 @@ function Xuat([string]$Name, [int]$Frames) {
     Keys '{TAB}'
     (Ui 'Xuất 1 tệp').SetFocus()
     Keys '{ENTER}'
+    $Projects = @(Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Directory)
+    if ($Projects.Count -ne 1) { throw 'Kho thử cần đúng một dự án.' }
+    $File = Join-Path $Projects[0].FullName 'xuat' "$Name.mp4"
     $Output = Wait-Moc {
-        $Matched = @(Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Recurse -File -Filter "$Name.mp4")
-        if ($Matched.Count -eq 1 -and $Matched[0].Length) { $Matched[0] }
-    } 75 "Thiếu MP4 $Name hoặc bị trùng."
+        if (Test-Path -LiteralPath $File -PathType Leaf) {
+            $Ready = Get-Item -LiteralPath $File
+            if ($Ready.Length) { $Ready }
+        }
+    } 75 "Thiếu MP4 $Name."
     try {
         $null = Wait-Moc { Find-Ui 'Thành phẩm' } 18 "Đã có $Name.mp4 nhưng Vèo chưa dùng làm thành phẩm."
     } finally {
