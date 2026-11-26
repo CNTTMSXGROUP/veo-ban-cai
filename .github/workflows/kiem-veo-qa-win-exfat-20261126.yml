@@ -44,7 +44,10 @@ jobs:
           $Installer = Start-Process $Setup -ArgumentList '/S',"/D=$Install" -PassThru
           if (!$Installer.WaitForExit(240000)) { $Installer.Kill($true); throw 'Cài NSIS quá thời gian.' }
           if ($Installer.ExitCode -ne 0) { throw "Cài NSIS lỗi $($Installer.ExitCode)." }
-          if ((Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash -ne 'e4870a54fab985deda4b50369d29813a598650401c70260312cdc4a059665ecd') { throw 'Sai phần dựng trong bộ cài.' }
+          $Worker = Join-Path $Install 'worker/dung-app.mjs'
+          if (!(Test-Path -LiteralPath $Worker -PathType Leaf)) { throw "Thiếu phần dựng sau cài đặt: $Worker" }
+          $WorkerHash = (Get-FileHash -LiteralPath $Worker -Algorithm SHA256).Hash
+          if ($WorkerHash -ne 'e4870a54fab985deda4b50369d29813a598650401c70260312cdc4a059665ecd') { throw "Sai mã băm phần dựng trong bộ cài: $WorkerHash" }
           Move-Item -LiteralPath (Join-Path $Dir 'veo-qa-e1d2e92-giu-lan-xuat.mjs') -Destination (Join-Path $Dir 'giu-lan-xuat.mjs')
 
           $Vhd = Join-Path $Dir 'veo-qa-fixture.vhd'
