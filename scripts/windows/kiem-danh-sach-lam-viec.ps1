@@ -169,11 +169,14 @@ try {
         if ([double]::IsFinite($Y) -and $Y -lt $RowY0) { $Y }
     } 5 'Chưa cuộn được danh sách thử.'
     Click-Ui (Ui 'Sửa tay')
-    (Ui 'Phụ đề khi xem').SetFocus()
-    Keys '{HOME}'
-    Start-Sleep -Milliseconds 250
-    Keys '+{RIGHT}'
+    $Tick = (Ui '0:01').Current.BoundingRectangle
+    if ($Tick.IsEmpty) { throw 'Không đo được mốc một giây trên dải thời gian.' }
+    [System.Windows.Forms.Cursor]::Position = [System.Drawing.Point]::new(
+        [int]($Tick.X + $Tick.Width / 2), [int]($Tick.Y + $Tick.Height / 2))
+    [VeoQaWindow]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+    [VeoQaWindow]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 350
+    $null = Anh 'sua-tay-dau-phat'
     Keys '^b'
     $Split = Wait-Moc { $P = Doc-Kho 'p4'; if ($P.items -eq 2) { $P } } 20 'Ctrl+B chưa tách đoạn.'
     Keys '^z'
