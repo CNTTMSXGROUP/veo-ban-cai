@@ -236,7 +236,8 @@ try {
     Click-Ui (Ui 'Mở bản sao')
     $null = Ui 'Đã tạo dự án từ Drive trong danh sách Đang làm.'
     Keys '{ESC}'
-    $null = Ui "$($Index.name) (Drive)"
+    $ProjectTitle = "$($Index.name) (Drive)"
+    $null = Ui $ProjectTitle
     Click-Ui (Ui 'Sửa tay')
     Click-Ui (Ui 'Khung bìa')
     $Picker = Wait-Moc { Find-Ui 'Tỷ lệ khung dự án' -Focusable } 18 'Không đổi được khung từ clip quay gốc.'
@@ -332,6 +333,7 @@ try {
         workerSha256=$env:VEO_QA_WORKER_SHA
         system=$env:VEO_QA_OS
         sourceClipSha256=$OriginalSha
+        projectName=$ProjectTitle
         mediaCount=$Index.files.Count
         missingDetected=$true
         sameSizeChangeDetected=$true
