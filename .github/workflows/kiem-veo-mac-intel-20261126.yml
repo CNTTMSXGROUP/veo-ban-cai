@@ -79,6 +79,7 @@ jobs:
             if test -f "$f"; then tail -20 "$f"; fi
           done
       - name: Lưu bản xuất mẫu và kết quả
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: veo-intel-cap-nhat-r14

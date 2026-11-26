@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import select
 import signal
@@ -271,27 +272,57 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         print(f"hình trước {before_picture} · sau {after_picture}",flush=True)
         new_cpu,cpu_actual,after_cpu=render(live,route,"Veo-sau-0324-CPU",best=True)
         assert cpu_actual==cpu_streams
-        diff=subprocess.run([runtime/"ffmpeg","-hide_banner","-i",old_file,"-i",new_file,"-lavfi","psnr",
-                             "-an","-f","null","-"], capture_output=True,text=True,check=True)
-        psnr=next((line.strip() for line in diff.stderr.splitlines() if "PSNR y:" in line),"")
-        assert psnr
-        print(f"Hình CPU trước {before_cpu} · sau {after_cpu} · Bản tự chọn encoder {psnr}",flush=True)
-        assert after_cpu==before_cpu,"Tệp xuất lại với cùng preset CPU khác hình giải mã."
+        evidence=root/"minh-chung"
+        evidence.mkdir()
+        for file in (old_file, new_file, old_cpu, new_cpu):
+            shutil.copy2(file, evidence/file.name)
+
+        def compare(a, b, name):
+            stats=evidence/(name+"-psnr.txt")
+            result=subprocess.run([runtime/"ffmpeg","-hide_banner","-i",a,"-i",b,"-lavfi",f"psnr=stats_file={stats}",
+                                   "-an","-f","null","-"],capture_output=True,text=True,check=True)
+            summary=next(line.strip().split("] ",1)[-1] for line in result.stderr.splitlines() if "PSNR y:" in line)
+            frames=stats.read_text().splitlines()
+            assert len(frames)==273
+            changed=[i for i,frame in enumerate(frames) if "psnr_avg:inf" not in frame]
+            return {"summary":summary,"changedFrames":len(changed),"firstChangedFrame":changed[0] if changed else None}
+
+        def x264(file):
+            header=re.search(rb"x264 - core [^\0]{1,1800}",file.read_bytes())
+            return header[0].decode("ascii", errors="replace") if header else None
+
+        def decoded(file):
+            return subprocess.check_output([runtime/"ffmpeg","-v","error","-threads","1","-i",file,
+                "-map","0:v","-f","hash","-hash","sha256","-"],text=True).strip()
+
+        automatic=compare(old_file,new_file,"auto")
+        cpu=compare(old_cpu,new_cpu,"cpu")
+        details={"automatic":automatic,"cpu":cpu,
+                 "cpuBefore":{"picture":decoded(old_cpu),"encoder":x264(old_cpu)},
+                 "cpuAfter":{"picture":decoded(new_cpu),"encoder":x264(new_cpu)}}
+        cpu_equal=details["cpuBefore"]["picture"]==details["cpuAfter"]["picture"]
+        assert cpu_equal==(cpu["changedFrames"]==0)
+        if not cpu_equal:
+            try_again, retry_streams, _=render(live,route,"Veo-sau-0324-CPU-lap-lai",best=True)
+            assert retry_streams==cpu_streams
+            details["cpuRetry"]={"picture":decoded(try_again),"encoder":x264(try_again)}
+            shutil.copy2(try_again,evidence/try_again.name)
+        (evidence/"so-khung-hinh.json").write_text(json.dumps(details,ensure_ascii=False,indent=2)+"\n")
+        print(json.dumps(details,ensure_ascii=False),flush=True)
         client(live,route+"/export",{"video":False,"draft":True,"name":"Veo-nhap-sau-0324"})
         draft,=[Path(f) for f in wait_job(live,route,"xuat")["project"]["job"]["files"] if f.endswith(".otio")]
         otio_start=json.loads(draft.read_text())["global_start_time"]
         assert otio_start=={"OTIO_SCHEMA":"RationalTime.1","value":0,"rate":30}
         proof={"host":os.uname().machine,"from":"0.3.23","to":"0.3.24","history":len(before["history"]),
-               "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":True,"automaticPictureEqual":after_picture==before_picture,"automaticPicturePsnr":psnr,
+               "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":cpu_equal,"automaticPictureEqual":after_picture==before_picture,"automaticPicturePsnr":automatic["summary"],
                "signedUpdateRelaunched":True,"newRuntimeRequests":fetched,"verifiedFfmpegBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash,"otioFps":otio_start["rate"]}
-        evidence=root/"minh-chung"
-        evidence.mkdir()
-        shutil.copy2(new_file,evidence/"Veo-sau-0324.mp4")
         shutil.copy2(draft,evidence/"Veo-nhap-sau-0324.otio")
         subprocess.run([sys.executable,root/"kiem-chuyen-kho.py",root/"chuyen-kho",runtime,runtime/"dung-app.mjs",runtime/"fonts"],check=True)
         shutil.copy2(root/"chuyen-kho/ket-qua.json",evidence/"chuyen-kho.json")
         (evidence/"ket-qua.json").write_text(json.dumps(proof,ensure_ascii=False,indent=2)+"\n")
         print(json.dumps(proof,ensure_ascii=False),flush=True)
+        assert automatic["changedFrames"]==0,"Tệp xuất tự chọn encoder khác hình giải mã."
+        assert cpu_equal,"Tệp xuất lại với cùng preset CPU khác hình giải mã."
     finally:
         if "proc_check" in locals(): stop_test_worker(proc_check)
         for line in subprocess.check_output(["/bin/ps","-axo","pid=,args="],text=True).splitlines():
