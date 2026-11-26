@@ -88,7 +88,15 @@ pick_file() {
     type_text "$2"
     key Return
     capture "$3"
-    xdotool mousemove --window "$browser" "$((w-66))" "$((h-22))" click 1
+    xdotool mousemove --sync --window "$browser" "$((w-66))" "$((h-22))"
+    sleep .2
+    key Return
+    sleep .55
+    if xdotool getwindowname "$browser" >/dev/null 2>&1; then
+      xdotool mousedown 1
+      sleep .18
+      xdotool mouseup 1
+    fi
   fi
   for i in {1..20}; do
     if ! xdotool getwindowname "$browser" >/dev/null 2>&1; then sleep .4; return; fi
@@ -97,6 +105,13 @@ pick_file() {
   capture "${3}-chua-dong"
   echo "Hộp tệp còn mở sau thao tác $3 (cửa sổ ${w}x${h})." >&2
   return 1
+}
+at_frame() {
+  xdotool mousemove 872 483 click --repeat 2 --delay 110 1
+  key ctrl+a
+  type_text "$1"
+  key Return
+  sleep .7
 }
 
 start_app --factory-startup --app-template Video_Editing
@@ -116,6 +131,10 @@ capture 02-tim-nhap-otio
 key Return
 pick_file "$qa/nguon" ban-giao.otio 03-chon-otio
 capture 04-da-nhap
+at_frame 30
+capture 04a-canh-chen
+at_frame 120
+capture 04b-clip-chinh
 xdotool mousemove 480 670
 key Home shift+Left ctrl+s
 pick_file "$proof" r27-otio.blend 05-luu-ban-blender
@@ -125,12 +144,9 @@ timeout 18 tail --pid="$app_pid" -f /dev/null
 wait "$app_pid"
 app_pid=""
 start_app "$proof/r27-otio.blend"
-xdotool mousemove 480 670
-key shift+Left
-sleep .8
+at_frame 30
 capture 06-canh-chen-sau-khi-mo-lai
-xdotool key --clearmodifiers --repeat 105 --delay 18 Right
-sleep .8
+at_frame 120
 capture 07-clip-chinh-sau-khi-mo-lai
 python3 - "$proof" <<'PY'
 import json
