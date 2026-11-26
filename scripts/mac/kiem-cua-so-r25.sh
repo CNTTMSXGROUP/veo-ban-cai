@@ -130,8 +130,11 @@ fixture="$HOME/Documents/Canh A.mp4"
 capture '01-danh-sach-lam-viec'
 click 'Tạo mới'
 click 'Từ ý tưởng / Storyboard'
-click 'Dùng kịch bản mẫu'
-ui wait 'Đưa việc vào lịch' 10
+for attempt in {1..3}; do
+  if ui wait 'Đưa việc vào lịch' 2 2>/dev/null; then break; fi
+  click 'Dùng kịch bản mẫu'
+done
+ui wait 'Đưa việc vào lịch' 8
 click 'Chọn tệp cho Ảnh hoặc clip cảnh 1'
 ui click-text 'Documents'
 ui click-file 'Canh A*'
