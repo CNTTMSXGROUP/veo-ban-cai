@@ -142,6 +142,11 @@ function Seek-Sample {
     $Sort = @($Times | Sort-Object)
     return [ordered]@{ ms=$Times; p50=[math]::Round(($Sort[14]+$Sort[15])/2,1); p95=$Sort[28] }
 }
+function Proxy-Count {
+    return @(Get-ChildItem -LiteralPath (Join-Path $ReferenceDir 'xem') -File -Filter 'doan-*.mp4' -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -match '^doan-[a-f0-9]{24}\.mp4$' -and (Test-Path -LiteralPath ([IO.Path]::ChangeExtension($_.FullName, '.wav')))
+    }).Count
+}
 function Running-Exports {
     return @(Get-CimInstance Win32_Process -Filter "Name='ffmpeg.exe'" | Where-Object {
         $_.CommandLine -like "*$Data*" -and $_.CommandLine -match '(?i)[/\\]\.dang-xuat-'
@@ -194,7 +199,7 @@ try {
     $FFmpeg = Join-Path $Install 'ffmpeg.exe'
     $Probe = Join-Path $Install 'ffprobe.exe'
     $Source = Join-Path $Proof 'QA Tua 0.mp4'
-    $Filter = "drawbox=x=0:y=0:w=iw:h=ih/2:color=0x00ff00:t=fill:enable='lt(t,50)',drawbox=x=0:y=0:w=iw:h=ih/2:color=0x0000ff:t=fill:enable='gte(t,50)'"
+    $Filter = "hue=s=0,drawbox=x=0:y=0:w=iw:h=ih/2:color=0x00ff00:t=fill:enable='lt(t,50)',drawbox=x=0:y=0:w=iw:h=ih/2:color=0x0000ff:t=fill:enable='gte(t,50)'"
     & $FFmpeg -v error -f lavfi -i 'testsrc2=s=640x360:r=30:d=120' -f lavfi -i 'sine=f=431:r=48000:d=120' -vf $Filter -t 120 -c:v libx264 -threads 2 -preset ultrafast -c:a aac $Source
     if ($LASTEXITCODE -ne 0) { throw 'Không tạo được clip thử 120 giây.' }
 
@@ -215,11 +220,21 @@ try {
         $Row = Wait-Moc { Find-Ui "Xem QA Tua $I" -Focusable } 60 "Chưa thấy dự án QA Tua $I."
         Mouse-Ui $Row
         $null = Wait-Moc { Find-Ui 'Xuất video' -Focusable } 150 "Dựng QA Tua $I quá thời gian."
+        if ($I -eq 0) {
+            $Reference = @(Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Directory)
+            if ($Reference.Count -ne 1) { throw 'Chưa xác định được kho của clip dùng để đo tua.' }
+            $ReferenceDir = $Reference[0].FullName
+        }
+        Write-Host "Đã nhập và dựng QA Tua $I."
     }
 
     Mouse-Ui (Ui 'Xem QA Tua 0')
     Click-Ui (Ui 'Sửa tay')
+    $BeforeWarm = Proxy-Count
     $null = Seek-Frame $true
+    $BlueReady = Wait-Moc { if (($N = Proxy-Count) -gt $BeforeWarm) { $N } } 35 'Chưa chuẩn bị được đoạn xanh lam.'
+    $null = Seek-Frame $false
+    $WarmSegments = Wait-Moc { if (($N = Proxy-Count) -gt $BlueReady) { $N } } 35 'Chưa chuẩn bị được đoạn xanh lục.'
     $Idle = Seek-Sample
     $null = Anh '01-tua-khi-may-ranh'
     Write-Host "Đo xong 30 lượt khi rảnh. P95 $($Idle.p95) ms."
@@ -250,6 +265,9 @@ try {
         if ($Found.Count -eq 3 -and !(Running-Exports)) { ,$Found }
     } 420 'Chưa giao đủ ba MP4.'
     $Batch.Stop()
+    foreach ($I in 1..3) {
+        if (@($Outputs | Where-Object Name -match "^QA[ _-]Tua[ _-]$I(\D|$)").Count -ne 1) { throw "Lô chưa giao đúng QA Tua $I." }
+    }
     $Files = @(foreach ($Output in $Outputs) {
         $Streams = (& $Probe -v error -show_entries 'stream=codec_name,width,height,nb_frames' -of json $Output.FullName | ConvertFrom-Json).streams
         $Video = $Streams | Where-Object codec_name -eq h264
@@ -278,7 +296,8 @@ try {
         source=$env:VEO_QA_SOURCE; workerSha256=$env:VEO_QA_WORKER_SHA; system=$env:VEO_QA_OS
         machineRamBytes=(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
         logicalCpus=[Environment]::ProcessorCount
-        idle=$Idle; exporting=$Busy; exportsAtStart=$BeforeCount; exportsAtEnd=$AfterCount
+        idle=$Idle; exporting=$Busy; proxySegmentsBeforeMeasurement=$WarmSegments
+        ffmpegProcessesAtStart=$BeforeCount; ffmpegProcessesAtEnd=$AfterCount
         verifiedBatchMs=$Batch.ElapsedMilliseconds; reopenedAndPlayed=$true; outputs=$Files
     } | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'ket-qua.json')
 } catch {
