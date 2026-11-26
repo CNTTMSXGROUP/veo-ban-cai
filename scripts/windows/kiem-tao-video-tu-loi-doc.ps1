@@ -29,7 +29,7 @@ function Wait-Moc([scriptblock]$Predicate, [int]$Seconds, [string]$Message) {
     } while ([DateTime]::UtcNow -lt $Until)
     throw $Message
 }
-function Find-Ui([string]$Name, [switch]$ButtonPrefix) {
+function Find-Ui([string]$Name, [switch]$ButtonPrefix, [switch]$Focusable) {
     $App.Refresh()
     if ($App.HasExited -or $App.MainWindowHandle -eq [IntPtr]::Zero) { return }
     try {
@@ -42,10 +42,12 @@ function Find-Ui([string]$Name, [switch]$ButtonPrefix) {
         $Items = $Window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $Condition)
         foreach ($Item in $Items) {
             if ($ButtonPrefix -and !$Item.Current.Name.StartsWith($Name)) { continue }
+            if ($Focusable -and !$Item.Current.IsKeyboardFocusable) { continue }
             if ($Item.Current.IsEnabled -and !$Item.Current.IsOffscreen) { return $Item }
         }
         foreach ($Item in $Items) {
             if ($ButtonPrefix -and !$Item.Current.Name.StartsWith($Name)) { continue }
+            if ($Focusable -and !$Item.Current.IsKeyboardFocusable) { continue }
             if ($Item.Current.IsEnabled) { return $Item }
         }
     } catch [System.Windows.Automation.ElementNotAvailableException] { return }
@@ -76,7 +78,8 @@ function Anh([string]$Name) {
 }
 
 function Dien([string]$Name, [string]$Value) {
-    (Ui $Name).SetFocus()
+    $Field = Wait-Moc { Find-Ui $Name -Focusable } 15 "Không thấy ô nhập '$Name'."
+    $Field.SetFocus()
     Keys '^a'
     Keys $Value
     Keys '{TAB}'
