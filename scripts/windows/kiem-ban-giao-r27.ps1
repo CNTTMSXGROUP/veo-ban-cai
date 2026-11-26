@@ -189,15 +189,16 @@ try {
     $Media = Join-Path $Proof 'tu-lieu'
     New-Item -ItemType Directory -Path $Media | Out-Null
     $Main = Join-Path $Media 'May A.mp4'
-    $Insert = Join-Path $Media 'May B.mov'
-    & $FFmpeg -v error -f lavfi -i 'color=c=blue:s=256x256:r=30:d=6' -f lavfi -i 'sine=f=440:r=48000:d=6' -c:v libx264 -threads 1 -c:a aac -t 6 $Main
-    if ($LASTEXITCODE -ne 0) { throw 'Không tạo được clip chính.' }
-    & $FFmpeg -v error -f lavfi -i 'color=c=0xff7800:s=256x256:r=30:d=3' -c:v libx264 -threads 1 -an -timecode '01:00:10:03' $Insert
-    if ($LASTEXITCODE -ne 0) { throw 'Không tạo được cảnh chèn.' }
-    $InsertProbe = (& $Probe -v error -select_streams 'v:0' -show_entries 'stream=nb_frames:stream_tags=timecode' -of json $Insert | ConvertFrom-Json).streams[0]
-    if ($InsertProbe.nb_frames -ne '90' -or $InsertProbe.tags.timecode -ne '01:00:10:03') { throw 'Cảnh chèn thử sai khung hoặc mã thời gian.' }
+    $Second = Join-Path $Media 'May B.mp4'
+    $Suffix = $env:VEO_QA_ALPHA
+    $Overlay = Join-Path $Media "EffectCraft alpha.$Suffix"
+    Copy-Item -LiteralPath (Join-Path $Qa "Veo-QA-r27-effectcraft-alpha.$Suffix") -Destination $Overlay
+    foreach ($Pair in @(@($Main,'blue'),@($Second,'red'))) {
+        & $FFmpeg -v error -f lavfi -i "color=c=$($Pair[1]):s=640x360:r=30:d=2" -f lavfi -i 'sine=f=431:r=48000:d=2' -c:v libx264 -threads 1 -c:a aac -t 2 $Pair[0]
+        if ($LASTEXITCODE -ne 0) { throw "Không tạo được $($Pair[0])." }
+    }
 
-    Mouse-Ui (Ui 'Vuông 1:1')
+    Mouse-Ui (Ui 'Ngang 16:9')
     Click-Ui (Ui 'Cài dựng clip mới')
     $Picker = Wait-Moc { Find-Ui 'Cách dựng clip mới' -Focusable } 15 'Không tìm được cách dựng.'
     $Picker.SetFocus()
@@ -207,8 +208,9 @@ try {
     $null = Ui 'Vèo tìm điểm đổi cảnh tại máy. Có thể lấy lại mép đen đã rút trong Chỉnh nhanh → Cảnh.'
     Click-Ui (Ui 'Xong')
     Mouse-Ui (Ui 'Thả clip quay thô')
-    Choose-File 'Chọn clip quay thô' $Main
-    $null = Wait-Moc { Find-Ui 'Xuất video' } 150 'Clip chính chưa dựng xong.'
+    Choose-File 'Chọn clip quay thô' ('"{0}" "{1}"' -f $Main,$Second)
+    Click-Ui (Ui 'Gộp thành 1 video')
+    $null = Wait-Moc { Find-Ui 'Xuất video' } 135 'Hai clip chưa dựng xong.'
     Click-Ui (Ui 'Sửa tay')
     Click-Ui (Ui 'Hiệu ứng hình')
     Bo-MauMacDinh
@@ -218,111 +220,102 @@ try {
     Click-Ui $Tab
     Keys '{HOME}'
     Click-Ui (Ui 'Đưa tệp vào')
-    Choose-File 'Chọn ảnh hoặc clip' $Insert
-    Dien 'Tìm tư liệu' 'May B'
-    $null = Ui 'Gắn nhãn cho May B.mov'
+    Choose-File 'Chọn ảnh hoặc clip' $Overlay
+    Dien 'Tìm tư liệu' 'EffectCraft'
+    $null = Ui "Gắn nhãn cho EffectCraft alpha.$Suffix"
     Mouse-Ui (Ui 'Đặt')
-    $null = Ui 'Khung nhỏ'
-    $null = Wait-Moc { Anh '01-dat-canh-chen' } 12 'Chưa chụp được cảnh chèn.'
-    Mouse-Ui (Ui 'Lời thoại')
-    Mouse-Ui (Ui 'Hiệu ứng hình')
-    $TimelineClip = Ui 'May B.mov'
-    Mouse-Ui (Ui 'Phát')
-    $null = Wait-Moc { Find-Ui 'Dừng' } 4 'Khung xem chưa bắt đầu phát.'
-    Mouse-Ui $TimelineClip
-    $null = Wait-Moc { Find-Ui 'Phát' } 2 'Bấm cảnh chèn trên dải thời gian chưa dừng phát.'
-    $null = Wait-Moc { Anh '01-dung-khi-chon-canh' } 12 'Chưa chụp được vị trí dừng.'
+    Click-Ui (Ui 'Đầy khung')
+    Click-Ui (Ui 'Dải thời gian')
+    Dien 'Khung kết thúc' '102'
+    Start-Sleep -Milliseconds 600
+    Dien 'Khung bắt đầu' '42'
+    Start-Sleep -Milliseconds 600
+    $null = Wait-Moc { Anh '01-lop-alpha-bat-dau-ket-thuc' } 12 'Chưa chụp được hai mốc.'
+    $Undo = Wait-Moc { Find-Ui 'Hoàn tác' -ButtonPrefix } 12 'Không có Hoàn tác.'
+    Click-Ui $Undo
+    $Redo = Wait-Moc { Find-Ui 'Làm lại' -ButtonPrefix } 12 'Không có Làm lại.'
+    $null = Wait-Moc { Anh '02-hoan-tac' } 12 'Chưa chụp được hoàn tác.'
+    Click-Ui $Redo
+    $null = Wait-Moc { Anh '03-lam-lai' } 12 'Chưa chụp được làm lại.'
     Mouse-Ui (Ui 'Tự động')
-
-    $null = Ui 'Đã lưu dự án'
+    Mouse-Ui (Ui 'Tua video') .49
+    Mouse-Ui (Ui 'Phát')
+    $null = Wait-Moc { Find-Ui 'Dừng' } 4 'Không phát qua điểm nối.'
+    Start-Sleep -Milliseconds 450
+    $null = Wait-Moc { Anh '04-phat-qua-diem-noi' } 12 'Chưa chụp được khi phát qua điểm nối.'
+    if ($Stop = Find-Ui 'Dừng') { Mouse-Ui $Stop }
     Mouse-Ui (Ui 'Xuất video')
     Click-Ui (Ui '720p')
-    Click-Ui (Ui 'Tuỳ chọn xuất thêm')
-    Click-Ui (Ui 'Dự án dựng')
-    Click-Ui (Ui 'Bản nháp mở')
-    $null = Wait-Moc { Anh '02-chon-ba-tep' } 12 'Chưa chụp được hộp Xuất.'
-    Click-Ui (Ui 'Xuất 3 tệp')
-    $null = Wait-Moc { Find-Ui 'Thành phẩm' } 180 'Chưa thấy thành phẩm.'
-
-    $Outputs = @{}
-    foreach ($Ext in @('mp4','fcpxml','otio')) {
-        $Files = @(Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Directory | ForEach-Object {
-            Get-ChildItem -LiteralPath (Join-Path $_.FullName 'xuat') -File -Filter "*.$Ext" -ErrorAction SilentlyContinue
-        })
-        if ($Files.Count -ne 1 -or !$Files[0].Length) { throw "Thiếu tệp $Ext hoặc xuất trùng." }
-        $Outputs[$Ext] = $Files[0]
-        Copy-Item -LiteralPath $Files[0].FullName -Destination (Join-Path $Proof "ban-giao.$Ext")
-    }
-    $Video = (& $Probe -v error -select_streams 'v:0' -show_entries 'stream=codec_name,width,height,nb_frames,avg_frame_rate' -of json $Outputs.mp4.FullName | ConvertFrom-Json).streams[0]
-    if ($LASTEXITCODE -ne 0 -or $Video.codec_name -ne 'h264' -or $Video.width -ne 720 -or $Video.height -ne 720 -or
-        $Video.avg_frame_rate -ne '30/1' -or $Video.nb_frames -ne '180') { throw ('Sai thông số video: ' + ($Video | ConvertTo-Json -Compress)) }
-    $Decoded = Join-Path $Proof '03-mp4-khung-canh-chen.png'
-    & $FFmpeg -v error -ss 0.5 -i $Outputs.mp4.FullName -frames:v 1 -threads 1 $Decoded
-    if ($LASTEXITCODE -ne 0) { throw 'Không giải mã được khung MP4.' }
-    $Rgb = @(Read-Color $Decoded .32 .32)
-    if ((Compare-Color $Rgb @(255, 120, 0)) -gt 20) { throw "Cảnh chèn không vào MP4: $Rgb" }
-
-    [xml]$Xml = Get-Content -LiteralPath $Outputs.fcpxml.FullName -Raw -Encoding utf8
-    if ($Xml.fcpxml.version -ne '1.10' -or @($Xml.SelectNodes('//sequence')).Count -ne 1) { throw 'FCPXML sai cấu trúc.' }
-    $FcpPaths = @($Xml.SelectNodes('//media-rep') | ForEach-Object { ([uri]$_.GetAttribute('src')).LocalPath })
-    $Connected = $Xml.SelectSingleNode('//asset-clip[@lane="1"]')
-    if (!$Connected -or $Connected.GetAttribute('offset') -ne '0s') { throw 'Không thấy cảnh chèn ở đầu FCPXML.' }
-    $FcpSource = $Xml.SelectSingleNode("//asset[@id='$($Connected.ref)']")
-    if (!$FcpSource) { throw 'Thiếu cảnh chèn trong tài nguyên FCPXML.' }
-    $InsertCopy = ([uri]$FcpSource.SelectSingleNode('media-rep').GetAttribute('src')).LocalPath
-    if (!(Test-Path -LiteralPath $InsertCopy) -or (Get-FileHash -LiteralPath $InsertCopy).Hash -ne (Get-FileHash -LiteralPath $Insert).Hash) {
-        throw "Cảnh chèn FCPXML không khớp bản chép của tư liệu: $InsertCopy"
-    }
-    $OtioFile = Get-Content -LiteralPath $Outputs.otio.FullName -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable -Depth 100
-    if ($OtioFile.OTIO_SCHEMA -ne 'Timeline.1' -or $OtioFile.tracks.children.Count -lt 2) { throw 'OTIO thiếu timeline hoặc hàng cảnh chèn.' }
-    $OtioPaths = @($OtioFile.tracks.children | ForEach-Object { $_.children } | Where-Object { $_.OTIO_SCHEMA -eq 'Clip.2' } |
-        ForEach-Object { ([uri]$_.media_references.DEFAULT_MEDIA.target_url).LocalPath } | Sort-Object -Unique)
-    foreach ($Ref in @($Main, $InsertCopy)) {
-        if ($Ref -notin $FcpPaths -or $Ref -notin $OtioPaths -or !(Test-Path -LiteralPath $Ref)) { throw "Mất liên kết nguồn: $Ref" }
-    }
-    $OtioInsert = $OtioFile.tracks.children[1].children[0]
-    $TimeCode = $OtioInsert.media_references.DEFAULT_MEDIA.available_range.start_time
-    if ($TimeCode.value -ne 108303 -or $TimeCode.rate -ne 30 -or $OtioInsert.source_range.start_time.value -ne 108303) {
-        throw ('Sai timecode trong OTIO: ' + ($TimeCode | ConvertTo-Json -Compress))
+    Click-Ui (Ui 'Xuất 1 tệp')
+    $null = Wait-Moc { Find-Ui 'Thành phẩm' } 165 'Chưa thấy thành phẩm.'
+    $Files = @(Get-ChildItem -LiteralPath (Join-Path $Data 'du-an') -Directory | ForEach-Object {
+        Get-ChildItem -LiteralPath (Join-Path $_.FullName 'xuat') -File -Filter '*.mp4' -ErrorAction SilentlyContinue
+    })
+    if ($Files.Count -ne 1 -or !$Files[0].Length) { throw 'Thiếu MP4 hoặc xuất trùng.' }
+    $Output = $Files[0]
+    Copy-Item -LiteralPath $Output.FullName -Destination (Join-Path $Proof 'thanh-pham.mp4')
+    $Streams = (& $Probe -v error -show_entries 'stream=codec_name,width,height,nb_frames,avg_frame_rate' -of json $Output.FullName | ConvertFrom-Json).streams
+    $Video = $Streams | Where-Object codec_name -eq h264
+    if ($LASTEXITCODE -ne 0 -or $Video.width -ne 1280 -or $Video.height -ne 720 -or $Video.avg_frame_rate -ne '30/1' -or $Video.nb_frames -ne '120' -or 'aac' -notin $Streams.codec_name) {
+        throw ('Sai thông số MP4: ' + ($Streams | ConvertTo-Json -Compress))
     }
 
-    $Hash = @{}
-    foreach ($Ext in $Outputs.Keys) {
-        $Hash[$Ext] = (Get-FileHash -LiteralPath $Outputs[$Ext].FullName).Hash.ToLowerInvariant()
+    $Yellow = @(255,209,31)
+    $Blue = @(0,0,255)
+    $Red = @(255,0,0)
+    $Tests = @(
+        @{ frame=41; x=.23; y=.50; rgb=$Blue }
+        @{ frame=42; x=.23; y=.50; rgb=$Yellow }
+        @{ frame=59; x=.39; y=.50; rgb=$Yellow }
+        @{ frame=59; x=.90; y=.15; rgb=$Blue }
+        @{ frame=59; x=.544; y=.50; rgb=$Blue }
+        @{ frame=60; x=.39; y=.50; rgb=$Yellow }
+        @{ frame=60; x=.90; y=.15; rgb=$Red }
+        @{ frame=60; x=.544; y=.50; rgb=$Yellow }
+        @{ frame=101; x=.76; y=.50; rgb=$Yellow }
+        @{ frame=102; x=.76; y=.50; rgb=$Red }
+    )
+    foreach ($Test in $Tests) {
+        $Shot = Join-Path $Proof "mp4-khung-$($Test.frame).png"
+        if (!(Test-Path -LiteralPath $Shot)) {
+            & $FFmpeg -v error -i $Output.FullName -vf "select=eq(n\,$($Test.frame))" -frames:v 1 -threads 1 $Shot
+            if ($LASTEXITCODE -ne 0) { throw "Không đọc được khung $($Test.frame)." }
+        }
+        $Test.thuc = @(Read-Color $Shot $Test.x $Test.y)
+        if ((Compare-Color $Test.thuc $Test.rgb) -gt 30) {
+            throw ('Màu của lớp hoặc nền sai: ' + ($Test | ConvertTo-Json -Compress))
+        }
     }
+    $Hash = (Get-FileHash -LiteralPath $Output.FullName).Hash.ToLowerInvariant()
     Keys '%{F4}'
     if (!$App.WaitForExit(15000)) { throw 'Vèo chưa đóng.' }
     $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
     $null = Wait-Moc { Find-Ui 'Thành phẩm' } 65 'Mở lại Vèo chưa thấy thành phẩm.'
     if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm sau khi mở lại.' }
-    Mouse-Ui (Ui 'Tua video') .1
+    Mouse-Ui (Ui 'Tua video') .49
     Mouse-Ui (Ui 'Phát')
     $null = Wait-Moc { Find-Ui 'Dừng' } 15 'Không phát được MP4 sau khi mở lại.'
     Start-Sleep -Milliseconds 400
-    $null = Wait-Moc { Anh '04-phat-sau-khi-mo-lai' } 12 'Chưa chụp được khi phát lại.'
+    $null = Wait-Moc { Anh '05-phat-mp4-sau-khi-mo-lai' } 12 'Chưa chụp được MP4 khi phát lại.'
     Mouse-Ui (Ui 'Dừng')
     Click-Ui (Ui 'Sửa tay')
     Click-Ui (Ui 'Lịch sử xuất')
-    foreach ($Ext in $Outputs.Keys) {
-        $null = Ui $Outputs[$Ext].Name
-        if ((Get-FileHash -LiteralPath $Outputs[$Ext].FullName).Hash -ne $Hash[$Ext]) { throw "Mở lại làm đổi tệp $Ext." }
-    }
-    $null = Wait-Moc { Anh '05-lich-su-ba-tep' } 12 'Chưa chụp được lịch sử.'
+    $null = Ui $Output.Name
+    if ((Get-FileHash -LiteralPath $Output.FullName).Hash -ne $Hash) { throw 'Mở lại làm đổi MP4.' }
+    $null = Wait-Moc { Anh '06-lich-su-xuat' } 12 'Chưa chụp được lịch sử.'
     $Report = [ordered]@{
         source=$env:VEO_QA_SOURCE
         workerSha256=$env:VEO_QA_WORKER_SHA
         system=$env:VEO_QA_OS
+        format=$Suffix
         video=$Video
-        pixel=$Rgb
-        fcpVersion=$Xml.fcpxml.version
-        sourceTimecode=$InsertProbe.tags.timecode
-        otioTimecodeFrames=$TimeCode.value
+        samples=$Tests
         sha256=$Hash
-        pausedOnInsert=$true
         reopenedWithFiles=$true
     }
     $Report | ConvertTo-Json -Depth 7 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Proof 'ket-qua.json')
     Write-Host ($Report | ConvertTo-Json -Depth 7 -Compress)
+
 
 } catch {
     if ($App -and !$App.HasExited) {

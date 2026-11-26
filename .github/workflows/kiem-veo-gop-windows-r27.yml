@@ -1,13 +1,24 @@
-name: Kiểm dải thời gian và bàn giao trên Vèo Windows r27
+name: Kiểm lớp EffectCraft qua điểm nối trên Vèo Windows r27
 on:
   push:
-    branches: [kiem-veo-gop-r27]
+    branches: [kiem-veo-lop-alpha-r27]
 permissions:
   contents: read
 jobs:
-  mau-windows:
+  lop-alpha:
     runs-on: windows-latest
     timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: mov
+            sha: 4141be98d273456b3ebd3fb5d87b0195e992d90f4979bfe755eebc94e77944e7
+          - format: webm
+            sha: 079f12e50a04c48fc650f16b559ffe0ba38130ef0b0f745eaa9f69a929460a29
+    env:
+      VEO_QA_ALPHA: ${{ matrix.format }}
+      VEO_QA_ALPHA_SHA: ${{ matrix.sha }}
     permissions:
       contents: write
     steps:
@@ -16,19 +27,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ban-giao-r27'
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-lop-alpha-r27'
           $Tag = 'veo-qa-windows-20261126-7bc6cdf'
           $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe'
           $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
           if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
-          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          $Overlay = "Veo-QA-r27-effectcraft-alpha.$env:VEO_QA_ALPHA"
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name --pattern $Overlay
           if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne 'c89212dd71f1bb2c549c7142d9af20d62b0b474a2328b272abe852517c14fa84') {
             throw 'Không lấy được đúng bộ cài thử.'
           }
-      - name: Dựng, xuất và mở lại MP4, FCPXML, OTIO
+          if ((Get-FileHash (Join-Path $Qa $Overlay)).Hash -ne $env:VEO_QA_ALPHA_SHA) { throw 'Sai SHA-256 của lớp thử.' }
+      - name: Gộp hai clip, đặt lớp qua điểm nối rồi xuất và mở lại MP4
         shell: pwsh
         run: |
-          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-ban-giao-r27'
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-lop-alpha-r27'
           $Install = Join-Path $Qa 'app'
           if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
           $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r27.exe'
@@ -47,12 +60,12 @@ jobs:
           $Script = Join-Path $Qa $File
           Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile $Script
           & pwsh -NoProfile -STA -File $Script -Install $Install -Qa $Qa
-          if ($LASTEXITCODE -ne 0) { throw 'Ca kiểm tệp bàn giao thất bại.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Ca kiểm lớp trong suốt thất bại.' }
       - name: Lưu video và kết quả kiểm
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-ban-giao-r27-windows
-          path: ${{ runner.temp }}/veo-qa-ban-giao-r27/minh-chung
+          name: veo-windows-r27-alpha-${{ matrix.format }}
+          path: ${{ runner.temp }}/veo-qa-lop-alpha-r27/minh-chung
           if-no-files-found: warn
           retention-days: 30
