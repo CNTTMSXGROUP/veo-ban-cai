@@ -6,7 +6,16 @@ function Bam([string]$Ten, [switch]$Dau) {
     $Item.SetFocus()
     Keys '{ENTER}'
 }
-function Thay([string]$Text) { $null = Wait-Moc { Find-Ui $Text -TextPrefix } 28 "Không thấy $Text." }
+function Thay([string[]]$Text) {
+    $null = Wait-Moc {
+        foreach ($Part in $Text) { $Item = Find-Ui $Part -TextPrefix; if ($Item) { return $Item } }
+    } 28 "Không thấy $($Text -join ' hoặc ')."
+}
+function Nhap-Gia-Tri([string]$Value) {
+    Keys '^a'
+    [System.Windows.Forms.Clipboard]::SetText($Value)
+    Keys '^v'
+}
 function Luu-Anh([string]$Name) { if (!(Anh $Name)) { throw "Không chụp được $Name." } }
 function Mo-Veo {
     Bam 'Storyboard'
@@ -14,11 +23,16 @@ function Mo-Veo {
     $null = Ui 'Model tạo clip'
 }
 function Cloud-Budget([string]$USD) {
-    if (!(Find-Ui 'Ngân sách ước tính mỗi ngày (USD)' -Focusable)) { Bam 'Kết nối Veo qua Google Cloud' -Dau }
-    Dien 'ID dự án Google Cloud' 'veo-lite-qa'
-    Dien 'Ngân sách ước tính mỗi ngày (USD)' $USD
-    Bam 'Dùng phiên Google Cloud'
-    Thay 'creator@example.invalid'
+    $Details = Wait-Moc { Find-Ui 'Kết nối Veo qua Google Cloud' -TextPrefix -Focusable } 15 'Không thấy mục kết nối Veo.'
+    $Details.SetFocus()
+    if (!(Find-Ui 'Dùng phiên Google Cloud')) { Keys '{ENTER}'; Thay 'Dùng phiên Google Cloud' }
+    Keys '{TAB}'
+    Nhap-Gia-Tri 'veo-lite-qa'
+    Keys '{TAB}'
+    Nhap-Gia-Tri $USD
+    Keys '{TAB}{ENTER}'
+    Thay @('Phiên Google Cloud creator@example.invalid', 'creator@example.invalid')
+    Write-Host "Đã lưu ngân sách thử $USD USD trong cửa sổ."
 }
 function Nhat-Ky {
     if (Test-Path -LiteralPath $CloudLog) { Get-Content -LiteralPath $CloudLog | ForEach-Object { ConvertFrom-Json $_ } }
@@ -144,24 +158,21 @@ exit /b 1
     Cloud-Budget '0.11'
     Chon 'Độ phân giải clip' 1 '1080p'
     Bam 'Xem trước và duyệt'
-    Thay 'Ước tính'
-    Thay '0,32'
+    Thay @('Ước tính 0,32', '0,32')
     Thay 'Ảnh mở đầu sẽ gửi'
     Luu-Anh '02-lite-1080p-co-tieng'
     Bam 'Sửa yêu cầu'
     Chon 'Độ phân giải clip' 0 '720p'
     Bam 'Tạo tiếng cùng clip Veo'
     Bam 'Xem trước và duyệt'
-    Thay 'Ước tính'
-    Thay '0,12'
+    Thay @('Ước tính 0,12', '0,12')
     Thay 'Vượt ngân sách ước tính còn lại hôm nay.'
     if ((Find-Ui 'Gửi tạo cảnh' -Focusable) -or @(Nhat-Ky).Count -ne 0) { throw 'Không chặn đúng mức ngân sách 0,11 USD.' }
     Luu-Anh '03-chan-vuot-ngan-sach'
 
     Cloud-Budget '0.12'
     Bam 'Xem trước và duyệt'
-    Thay 'Ước tính'
-    Thay '0,12'
+    Thay @('Ước tính 0,12', '0,12')
     Bam 'Gửi tạo cảnh'
     Thay 'Có biên nhận, có thể tải lại'
     Luu-Anh '04-giu-ma-sau-loi-503'
