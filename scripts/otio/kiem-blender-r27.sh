@@ -83,12 +83,12 @@ pick_file() {
     # Thư mục nguồn chỉ hiển thị thư mục tư liệu và một tệp OTIO.
     xdotool mousemove 461 123 click --repeat 2 --delay 110 1
   else
-    xdotool mousemove 643 624 click 1
+    xdotool mousemove --window "$browser" "$((w/2))" "$((h-22))" click 1
     key ctrl+a
     type_text "$2"
     key Return
     capture "$3"
-    xdotool mousemove 1135 623 click 1
+    xdotool mousemove --window "$browser" "$((w-66))" "$((h-22))" click 1
   fi
   for i in {1..20}; do
     if ! xdotool getwindowname "$browser" >/dev/null 2>&1; then sleep .4; return; fi
