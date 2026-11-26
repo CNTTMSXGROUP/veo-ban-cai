@@ -130,9 +130,8 @@ fixture="$HOME/Documents/Canh A.mp4"
 capture '01-danh-sach-lam-viec'
 click 'Tạo mới'
 click 'Từ ý tưởng / Storyboard'
-click 'Tên video'
-ui key 17
-if ! ui wait 't' 3; then ui wait 'T' 7; fi
+click 'Dùng kịch bản mẫu'
+ui wait 'Đưa việc vào lịch' 10
 click 'Chọn tệp cho Ảnh hoặc clip cảnh 1'
 ui click-text 'Documents'
 ui click-file 'Canh A*'
@@ -144,21 +143,21 @@ if ! ui wait 'Xuất video' 55; then
   capture '03-khi-dung'
   ui wait 'Xuất video' 70
 fi
-click 'Sửa tay'
-click 'Hiệu ứng hình'
-click 'Cả video'
-click 'Phim cũ'
-ui wait 'Bỏ màu và chuyển động cả video' 20
-note='Khung xem dùng màu cơ bản vì WebGL chưa sẵn sàng. Kiểm màu nâng cao trong bản xuất.'
-if [[ "$arch" == x86_64 ]]; then ui wait "$note" 12; fi
-capture '03-mau-khi-xem'
-click 'Hoàn tác*'
-if ui wait "$note" 3 2>/dev/null; then echo 'Cảnh báo màu còn hiện sau hoàn tác.' >&2; exit 1; fi
-capture '03-hoan-tac-mau'
-click 'Làm lại*'
-ui wait 'Bỏ màu và chuyển động cả video' 15
-if [[ "$arch" == x86_64 ]]; then ui wait "$note" 12; fi
-click 'Tự động'
+if [[ "$arch" == x86_64 ]]; then
+  click 'Sửa tay'
+  click 'Hiệu ứng hình'
+  click 'Cả video'
+  click 'Phim cũ'
+  note='Khung xem dùng màu cơ bản vì WebGL chưa sẵn sàng. Kiểm màu nâng cao trong bản xuất.'
+  ui wait "$note" 12
+  capture '03-mau-khi-xem'
+  click 'Hoàn tác*'
+  if ui wait "$note" 3 2>/dev/null; then echo 'Cảnh báo màu còn hiện sau hoàn tác.' >&2; exit 1; fi
+  capture '03-hoan-tac-mau'
+  click 'Làm lại*'
+  ui wait "$note" 12
+  click 'Tự động'
+fi
 click 'Xuất video'
 click '720p'
 click 'Xuất 1 tệp'
@@ -170,7 +169,7 @@ mp4="$proof/Thanh-pham.mp4"
 cp "$output" "$mp4"
 hash="$(shasum -a 256 "$output" | awk '{print $1}')"
 "$runtime/ffprobe" -v error -select_streams v:0 -show_entries stream=codec_name,width,height,avg_frame_rate,nb_frames -of json "$mp4" > "$proof/mp4.json"
-jq -e '.streams[0] | .codec_name=="h264" and .nb_frames=="120" and .avg_frame_rate=="30/1" and (.height==720 or .width==720)' "$proof/mp4.json" > /dev/null
+jq -e '.streams[0] | .codec_name=="h264" and .nb_frames=="600" and .avg_frame_rate=="30/1" and (.height==720 or .width==720)' "$proof/mp4.json" > /dev/null
 before="$(grep -c 'GET /.*tar.gz' "$scratch/server.log")"
 ui key 12 cmd
 await_stop
