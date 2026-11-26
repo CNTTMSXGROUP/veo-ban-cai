@@ -131,9 +131,8 @@ capture '01-danh-sach-lam-viec'
 click 'Tạo mới'
 click 'Từ ý tưởng / Storyboard'
 click 'Tên video'
-# Phím t, e, s, t trên bàn phím của máy thử.
-for key in 17 14 1 17; do ui key "$key"; done
-ui wait 'test' 10
+ui key 17
+if ! ui wait 't' 3; then ui wait 'T' 7; fi
 click 'Chọn tệp cho Ảnh hoặc clip cảnh 1'
 ui click-text 'Documents'
 ui click-file 'Canh A*'
