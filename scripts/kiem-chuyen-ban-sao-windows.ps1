@@ -139,9 +139,9 @@ try {
   $Plan = Get-Content -LiteralPath $Index -Encoding UTF8 -Raw | ConvertFrom-Json
   if ($Plan.plan.sources.Count -ne 2 -or $Plan.files.Count -ne 2 -or !$Plan.plan.clipNgan) { throw 'Gói Drive không chứa clip và đúng hai nguồn.' }
   New-Item -ItemType Directory -Path $EvidenceDir | Out-Null
-  $Archive = Join-Path $EvidenceDir 'goi-drive.tar.gz'
-  tar.exe -czf $Archive -C $Drive .
-  if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $Archive -PathType Leaf)) { throw 'Không gói được bản sao Drive.' }
+  $Archive = Join-Path $EvidenceDir 'goi-drive.zip'
+  [IO.Compression.ZipFile]::CreateFromDirectory($Drive, $Archive)
+  if (!(Test-Path -LiteralPath $Archive -PathType Leaf)) { throw 'Không gói được bản sao Drive.' }
   Copy-Item -LiteralPath $Movie -Destination (Join-Path $EvidenceDir 'Veo-Windows.mp4')
   @{
     source = 'Windows Server 2025 x64'; version = $Version; instance = $Snapshot.id
