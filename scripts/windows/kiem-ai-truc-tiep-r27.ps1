@@ -168,7 +168,8 @@ function Nhan([string]$Text, [string]$Reply, [string]$Shot) {
 }
 function Xuat([string]$Name, [int]$Frames) {
     $Button = Wait-Moc { (Find-Ui 'Xuất lại' -Focusable) ?? (Find-Ui 'Xuất video' -Focusable) } 15 'Chưa thấy nút xuất.'
-    Mouse-Ui $Button
+    $Button.SetFocus()
+    Keys '{ENTER}'
     Click-Ui (Ui '720p')
     Dien 'Tên tệp' $Name
     Keys '{TAB}'

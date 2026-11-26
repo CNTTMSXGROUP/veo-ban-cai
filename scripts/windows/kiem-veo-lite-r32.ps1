@@ -199,7 +199,9 @@ exit /b 1
     Bam 'Dùng cho cảnh 1'
     $null = Ui 'Tạo bản dựng mới'
     Bam 'Tạo bản dựng mới'
-    $null = Wait-Moc { Find-Ui 'Xuất video' -Focusable } 75 'Chưa dựng lại từ clip đã tạo.'
+    $null = Wait-Moc {
+        if (!(Find-Ui 'Tên video' -Focusable) -and (Find-Ui 'Xuất video' -Focusable)) { return $true }
+    } 75 'Chưa dựng lại từ clip đã tạo và đóng hộp storyboard.'
     $Output = Xuat 'QA Veo Lite Xuat' 120
     Kiem-Mau $Output '1.0' 2
 

@@ -1,0 +1,56 @@
+name: Kiểm ngân sách và tải lại Veo 3.1 Lite trên Windows r33
+on:
+  push:
+    branches: [kiem-veo-r33-lite-windows]
+permissions:
+  contents: read
+jobs:
+  do:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    permissions:
+      contents: write
+    steps:
+      - name: Cài đúng Vèo Windows r33
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-lite-r33'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r33.exe'
+          if ((gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '093647c89e5a55fa1f105e465ba1b600ad55ef78aa33402ca6f5b2c5eec6ac78') { throw 'Sai bộ cài thử.' }
+          $Install = Join-Path $Qa 'app'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
+          $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
+      - name: Duyệt ảnh, chặn vượt ngân sách và phát lại MP4
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-lite-r33'
+          $Install = Join-Path $Qa 'app'
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
+          if ($env:VEO_QA_WORKER_SHA -ne '70930267c689bc91a09f31db2435e848d46b9f509360b85eef4046c7fd04ba54') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = 'a5c83fc344e43d056eb2cb191f5365bbb759f2f1'
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
+          if (Test-Path $Data) { throw 'Cần máy thử có kho trống.' }
+          $env:DUNG_CHEP_LOI = 'may'
+          $env:NO_PROXY = '127.0.0.1,localhost'
+          $Script = Join-Path $Qa 'kiem-veo-lite-r32.ps1'
+          foreach ($File in @('kiem-veo-lite-r32.ps1', 'kiem-ai-truc-tiep-r27.ps1', 'veo-lite-cloud-thu.cjs')) {
+            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$File" -OutFile (Join-Path $Qa $File)
+          }
+          & pwsh -NoProfile -STA -File $Script -Install $Install -Qa $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Ca kiểm Veo 3.1 Lite thất bại.' }
+      - name: Lưu ảnh, lượt Cloud thử và MP4
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-r33-lite-windows
+          path: ${{ runner.temp }}/veo-qa-lite-r33/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
