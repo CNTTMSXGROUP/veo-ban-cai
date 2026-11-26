@@ -82,9 +82,6 @@ function Dien([string]$Name, [string]$Value) {
     Keys '{TAB}'
 }
 $Firewall = "Veo-QA-WebView2-$env:GITHUB_RUN_ID"
-$env:DUNG_KHO_NHAC = Join-Path $Qa 'nhac-trong'
-$env:DUNG_WHISPER_MODEL = Join-Path $Qa 'chua-can-chep-loi.bin'
-New-Item -ItemType Directory -Path $env:DUNG_KHO_NHAC -Force | Out-Null
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $Qa 'webview2'
 $Shell = New-Object -ComObject WScript.Shell
 $App = $null
@@ -102,8 +99,17 @@ try {
     if (!(Get-NetFirewallRule -Name $Firewall -PolicyStore ActiveStore -ErrorAction SilentlyContinue)) {
         throw 'Luật ngoại tuyến chưa có hiệu lực.'
     }
-    Stop-Process -Id $App.Id
-    $App.WaitForExit()
+    $PreviousWorker = Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+        Where-Object ParentProcessId -eq $App.Id | Select-Object -First 1
+    if (!$App.CloseMainWindow() -or !$App.WaitForExit(10000)) {
+        Stop-Process -Id $App.Id
+        $App.WaitForExit()
+    }
+    if ($PreviousWorker) {
+        $null = Wait-Moc {
+            !(Get-Process -Id $PreviousWorker.ProcessId -ErrorAction SilentlyContinue)
+        } 15 'Phần dựng từ lượt mở đầu chưa dừng.'
+    }
     New-Item -ItemType Directory -Path $Data -Force | Out-Null
     @{refresh='veo-qa-khong-phai-token'; id='00000000-0000-4000-8000-000000000026'; email='veo-qa@example.invalid'; ten='Kho thử Windows'} |
         ConvertTo-Json -Compress | Set-Content -Encoding utf8 -LiteralPath (Join-Path $Data 'dang-nhap.json')
@@ -115,6 +121,7 @@ try {
     } 65 'Không mở được kho thử trên Vèo.'
     if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm cửa sổ thử.' }
     if ($Skip = Find-Ui 'Dùng ngay') { Click-Ui $Skip }
+    Write-Host 'Đã vào Danh sách làm việc trong kho thử.'
     $null = Ui 'Vèo 0.3.24'
     $TaiNguyen = Join-Path $Data 'tai-nguyen'
     $MusicWait = [Diagnostics.Stopwatch]::StartNew()
@@ -180,6 +187,10 @@ try {
     Write-Host "Đã phát thử lời đọc, nới cảnh từ 2 lên $Seconds giây và xuất MP4."
 } catch {
     if ($App -and !$App.HasExited) { $null = Anh 'loi' }
+    $Roots = @($Data, (Join-Path $env:LOCALAPPDATA 'vn.msxgroup.phongdung'))
+    $Log = Get-ChildItem -LiteralPath $Roots -Recurse -File -Filter 'phan-dung.log' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($Log) { Copy-Item -LiteralPath $Log.FullName -Destination (Join-Path $Proof 'phan-dung.log') }
     throw
 } finally {
     if ($App -and !$App.HasExited) { Stop-Process -Id $App.Id }
