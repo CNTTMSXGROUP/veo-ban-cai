@@ -52,7 +52,7 @@ wm_pid=$!
 
 capture() { import -window root "$proof/$1.png"; }
 key() { xdotool key --clearmodifiers "$@"; }
-type_text() { xdotool type --clearmodifiers -- "$1"; }
+type_text() { xdotool type --clearmodifiers --delay 22 -- "$1"; }
 start_app() {
   "$blender" --window-maximized "$@" >> "$proof/blender.log" 2>&1 &
   app_pid=$!
@@ -63,13 +63,14 @@ start_app() {
 pick_file() {
   browser="$(timeout 20 xdotool search --sync --onlyvisible --name 'Blender File View' | head -1)"
   xdotool windowactivate --sync "$browser"
-  key ctrl+l ctrl+a
-  type_text "$1/"
-  key Return
-  sleep .5
   geometry="$(xdotool getwindowgeometry --shell "$browser")"
   w="$(awk -F= '$1=="WIDTH" {print $2}' <<< "$geometry")"
   h="$(awk -F= '$1=="HEIGHT" {print $2}' <<< "$geometry")"
+  xdotool mousemove --window "$browser" "$((w/2))" 21 click 1
+  key ctrl+a
+  type_text "$1/"
+  key Return
+  sleep .6
   xdotool mousemove --window "$browser" "$((w/2))" "$((h-17))" click 1
   key ctrl+a
   type_text "$2"
@@ -88,7 +89,9 @@ key Escape
 capture 01-khong-gian-dung
 xdotool mousemove 480 670
 key F3
-type_text 'Import OTIO'
+sleep .5
+type_text 'Import OpenTimelineIO'
+sleep .6
 capture 02-tim-nhap-otio
 key Return
 pick_file "$qa" ban-giao.otio 03-chon-otio
