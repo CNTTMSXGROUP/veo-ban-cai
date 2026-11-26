@@ -36,6 +36,7 @@ function Cloud-Budget([string]$USD) {
     Nhap-Gia-Tri $USD
     Mouse-Ui (Ui 'Dùng phiên Google Cloud')
     Thay @('Phiên Google Cloud creator@example.invalid', 'creator@example.invalid')
+    Thay ("Kết nối Veo qua Google Cloud · còn " + $USD.Replace('.', ','))
     Write-Host "Đã lưu ngân sách thử $USD USD trong cửa sổ."
 }
 function Nhat-Ky {
@@ -174,6 +175,7 @@ exit /b 1
     if ((Find-Ui 'Gửi tạo cảnh' -Focusable) -or @(Nhat-Ky).Count -ne 0) { throw 'Không chặn đúng mức ngân sách 0,11 USD.' }
     Luu-Anh '03-chan-vuot-ngan-sach'
 
+    Bam 'Sửa yêu cầu'
     Cloud-Budget '0.12'
     Bam 'Xem trước và duyệt'
     Thay @('Ước tính 0,12', '0,12')
