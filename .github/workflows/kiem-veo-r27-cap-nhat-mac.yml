@@ -1,0 +1,75 @@
+name: Nâng Vèo Mac lên r27 và thử quay lui bằng bản sao
+on:
+  push:
+    branches: [kiem-veo-r27-cap-nhat-mac]
+permissions:
+  contents: read
+jobs:
+  cap-nhat:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            chip: arm64
+            mode: bam
+            old: 4113471eddd2588e72565c817e1814e7cc16947c30ce9cd2ac12b763627dc6e3
+            new: e36dccc921d724aa520cc1b655a3e8a3f902a87ec0cf29c0bad6a0824b7f2891
+            sig: 266baedbc0c787185ac0797b124607f1f789d72656c6e381d0de0b242181efab
+          - runner: macos-15-intel
+            chip: x64
+            mode: thoat
+            old: 659bf2c2afb24f809e07b3a6f697460a3a2724fc45ad543ec8369ea7ab3b2f27
+            new: e3542d5ab8fe431455f5bccc0643a85be29b69da4efebc999f63388276b8543e
+            sig: 367954fd2684f70b19cdb6b8ee1b1916b4f654b09ddd97c1930f12be60314949
+    steps:
+      - name: Nạp đúng bộ cài và thử nâng qua giao diện
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_CA_CHIP: ${{ matrix.chip }}
+          VEO_CA_MODE: ${{ matrix.mode }}
+          VEO_CA_OLD: ${{ matrix.old }}
+          VEO_CA_NEW: ${{ matrix.new }}
+          VEO_CA_SIG: ${{ matrix.sig }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-cap-nhat"
+          mkdir -p "$qa"
+          cd "$qa"
+          sw_vers
+          if [[ "$VEO_CA_CHIP" == x64 ]]; then
+            [[ "$(uname -m)" == x86_64 ]]
+            sysctl -n machdep.cpu.brand_string | grep -Fi Intel
+          else
+            [[ "$(uname -m)" == arm64 ]]
+          fi
+          old="Veo-QA-mac-${VEO_CA_CHIP}_0.3.23-r27-key.app.tar.gz"
+          new="Veo-QA-mac-${VEO_CA_CHIP}_0.3.24-r27.app.tar.gz"
+          tag=veo-qa-mac-intel-20261126
+          win=veo-qa-windows-20261126-7bc6cdf
+          for draft in "$tag" "$win"; do
+            [[ "$(gh release view "$draft" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
+          done
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern "$old" --pattern "$new" --pattern "$new.sig"
+          gh release download "$win" -R "$GITHUB_REPOSITORY" --pattern 'qa-upgrade-voice.mp4'
+          printf '%s\n' "$VEO_CA_OLD  $old" "$VEO_CA_NEW  $new" "$VEO_CA_SIG  $new.sig" '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
+          curl -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
+          printf '%s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  ggml-base.en-q5_1.bin' | shasum -a 256 -c
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-cap-nhat-mac-r27.sh; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-cap-nhat-mac-r27.sh" "$qa" "$qa/$old" "$qa/$new" "$VEO_CA_MODE"
+      - name: Lưu ảnh và tệp phát lại
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-mac-${{ matrix.chip }}-cap-nhat-r27
+          path: ${{ runner.temp }}/veo-qa-mac-cap-nhat/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
