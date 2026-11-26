@@ -1,0 +1,45 @@
+name: Kiểm storyboard và phát lại trên Vèo Mac r28
+on:
+  push:
+    branches: [kiem-veo-r28-mac]
+permissions:
+  contents: read
+jobs:
+  ve-o:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            chip: arm64
+            dmg_sha: d90850419e1a9687b59e9189f337bc910aaed15335f90fb1f13784083ad11318
+          - runner: macos-15-intel
+            chip: x64
+            dmg_sha: 12cc2246820744282dfb626764e93d13ad847d370b0f8f1dea8c1de00e174a31
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Cài Vèo, tạo storyboard bằng chuột và phím rồi mở lại MP4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_QA_DMG_SHA: ${{ matrix.dmg_sha }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-cua-so"
+          mkdir -p "$qa"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          for tep in bam-cua-so.swift kiem-cua-so-r28.sh; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/$tep"
+          done
+          bash "$qa/kiem-cua-so-r28.sh" "$qa" "$VEO_QA_DMG_SHA"
+      - name: Lưu ảnh, video và kết quả
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-mac-${{ matrix.chip }}-r28
+          path: ${{ runner.temp }}/veo-qa-mac-cua-so/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
