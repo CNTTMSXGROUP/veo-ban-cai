@@ -126,10 +126,14 @@ def verify_worker(updated, old_runtime, ffmpeg_archive):
     resources=updated/'Contents/Resources/worker'
     for name in ('dung-app.mjs','veo-mcp.mjs','package.json'):
         shutil.copy2(resources/name,runtime_check/name)
-    shutil.copytree(resources/'fonts',runtime_check/'fonts',dirs_exist_ok=True)
+    shutil.rmtree(runtime_check/'fonts')
+    shutil.copytree(resources/'fonts',runtime_check/'fonts')
     child_env={k:v for k,v in env.items() if k not in ('DUNG_PORT','DUNG_TOKEN','DUNG_TU_CHAY_LAI','DUNG_GIU','NODE_OPTIONS')}
     child_env.update(DUNG_DATA=str(data),DUNG_FFMPEG=str(runtime_check/'ffmpeg'),DUNG_FFPROBE=str(runtime_check/'ffprobe'),
-                     DUNG_FONTS=str(runtime_check/'fonts'),DUNG_DEEP_FILTER=str(runtime_check/'deep-filter'),DUNG_PORT='0')
+                     DUNG_FONTS=str(runtime_check/'fonts'),DUNG_DEEP_FILTER=str(runtime_check/'deep-filter'),
+                     DUNG_PIXEL_DIR=str(resources/'pixel'),DUNG_MAU_VIDEO_DIR=str(resources/'mau-video'),
+                     DUNG_WHISPER_CLI=str(runtime_check/'whisper-cli'),DUNG_PORT='0',DUNG_TU_SUA='1',
+                     PATH=str(runtime_check)+os.pathsep+env['PATH'])
     with (root/'phan-dung-kiem.log').open('w') as error:
         proc_check=subprocess.Popen([runtime_check/'node',runtime_check/'dung-app.mjs'],cwd=runtime_check,
             env=child_env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=error)
@@ -178,8 +182,8 @@ def wait_job(auth, route, kind):
         time.sleep(.3)
     raise TimeoutError(kind)
 
-def render(auth, route, name):
-    client(auth,route+"/export",{"video":True,"captions":True,"check":False,"res":720,"name":name})
+def render(auth, route, name, best=False):
+    client(auth,route+"/export",{"video":True,"captions":True,"check":False,"res":720,"name":name,"best":best})
     view=wait_job(auth,route,"xuat")
     file,=[Path(f) for f in view["project"]["job"]["files"] if f.endswith(".mp4")]
     assert file.is_file() and file.is_relative_to(data) and file.stem==name
@@ -234,6 +238,7 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         assert len(before["history"])==6 and caption in before["captions"]
         assert any(i.get("asset")==sticker for i in before["inserts"]) and before["cover"]["imageEdit"]["zoom"]==130
         old_file,streams,before_picture=render(auth,route,"Veo-tu-0323")
+        old_cpu,cpu_streams,before_cpu=render(auth,route,"Veo-tu-0323-CPU",best=True)
         files={clip,old_file,Path(before["cover"]["imagePath"]),*[Path(s["path"]) for s in before["sources"]],
                *[Path(i["path"]) for i in before["inserts"] if i.get("path")]}
         hashes={f:sha(f) for f in files}
@@ -264,13 +269,20 @@ with http.server.ThreadingHTTPServer(("127.0.0.1",59343),Server) as server, (roo
         new_file,actual,after_picture=render(live,route,"Veo-sau-0324")
         assert actual==streams and sha(old_file)==hashes[old_file]
         print(f"hình trước {before_picture} · sau {after_picture}",flush=True)
-        assert after_picture==before_picture,"Tệp xuất lại khác hình giải mã."
+        new_cpu,cpu_actual,after_cpu=render(live,route,"Veo-sau-0324-CPU",best=True)
+        assert cpu_actual==cpu_streams
+        diff=subprocess.run([runtime/"ffmpeg","-hide_banner","-i",old_file,"-i",new_file,"-lavfi","psnr",
+                             "-an","-f","null","-"], capture_output=True,text=True,check=True)
+        psnr=next((line.strip() for line in diff.stderr.splitlines() if "PSNR y:" in line),"")
+        assert psnr
+        print(f"Hình CPU trước {before_cpu} · sau {after_cpu} · Bản tự chọn encoder {psnr}",flush=True)
+        assert after_cpu==before_cpu,"Tệp xuất lại với cùng preset CPU khác hình giải mã."
         client(live,route+"/export",{"video":False,"draft":True,"name":"Veo-nhap-sau-0324"})
         draft,=[Path(f) for f in wait_job(live,route,"xuat")["project"]["job"]["files"] if f.endswith(".otio")]
         otio_start=json.loads(draft.read_text())["global_start_time"]
         assert otio_start=={"OTIO_SCHEMA":"RationalTime.1","value":0,"rate":30}
         proof={"host":os.uname().machine,"from":"0.3.23","to":"0.3.24","history":len(before["history"]),
-               "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":True,
+               "preservedFiles":len(hashes),"frames":int(actual[0]["nb_frames"]),"sameDecodedPicture":True,"automaticPictureEqual":after_picture==before_picture,"automaticPicturePsnr":psnr,
                "signedUpdateRelaunched":True,"newRuntimeRequests":fetched,"verifiedFfmpegBytes":new["ffmpeg"]["size"],"workerSha256":worker_hash,"otioFps":otio_start["rate"]}
         evidence=root/"minh-chung"
         evidence.mkdir()
