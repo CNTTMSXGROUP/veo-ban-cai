@@ -111,15 +111,21 @@ quit_app() {
   echo 'Cửa sổ chưa thoát sau Command-Q.' >&2
   return 1
 }
-welcome() { if ui click 'Dùng ngay' 5 2>/dev/null; then sleep .4; fi; }
+ready() {
+  for try in {1..64}; do
+    if ui click-app 'Dùng ngay' .5 2>/dev/null; then sleep .4; fi
+    if ui wait "$1" 1 2>/dev/null; then return; fi
+  done
+  ui wait "$1" 1
+}
 snapshot() {
   sqlite3 -readonly "$db" 'SELECT id,name,head FROM projects ORDER BY id; SELECT project_id,n,label FROM versions ORDER BY project_id,n;'
 }
 play() { ui wait 'Thành phẩm' 90; click 'Phát'; ui wait 'Dừng' 6; capture "$1"; click 'Dừng'; }
 
 start_app cu
-welcome
-click 'Thả clip quay thô vào đây*' 100
+ready 'Thả clip quay thô vào đây*'
+click 'Thả clip quay thô vào đây*'
 ui click-text 'Documents'
 ui click-file 'Veo kho Mac thu*'
 click 'Open'
@@ -153,8 +159,7 @@ ditto "$data/du-an" "$scratch/ban-sao/du-an"
 
 feed '0.3.24'
 start_app doi
-welcome
-ui wait 'Cập nhật bản 0.3.24' 95
+ready 'Cập nhật bản 0.3.24'
 capture '03-goi-da-duoc-xac-minh'
 [[ "$(hash "$cache")" == "$(hash "$new")" ]]
 old_pid="$app_pid"
@@ -183,7 +188,7 @@ else
   [[ -z "$(app_pids)" ]]
   start_app r27
 fi
-welcome
+ready 'Thành phẩm'
 play '04-phat-ban-cu-trong-r27'
 [[ ! -e "$cache" && "$(hash "$old_out")" == "$old_hash" && "$(hash "$fixture")" == "$src_hash" ]]
 snapshot > "$proof/lich-su-sau.txt"
@@ -209,7 +214,7 @@ done
 cmp "$proof/video-0.3.23.json" "$proof/video-r27.json"
 quit_app
 start_app mo-lai-r27
-welcome
+ready 'Thành phẩm'
 play '05-phat-mp4-r27-sau-khi-mo-lai'
 [[ "$(hash "$new_out")" == "$new_hash" && "$(hash "$old_out")" == "$old_hash" ]]
 quit_app
@@ -224,7 +229,7 @@ tar -xzf "$old" -C "$scratch"
 [[ "$(version)" == '0.3.23' && "$(hash "$bin")" == "$old_binary" ]]
 feed '0.3.23'
 start_app quay-lui
-welcome
+ready 'Thành phẩm'
 play '06-phat-tu-ban-sao-sau-quay-lui'
 [[ "$(hash "$old_out")" == "$old_hash" && "$(hash "$scratch/kho-r27/${new_out#"$data/"}")" == "$new_hash" ]]
 snapshot > "$proof/lich-su-quay-lui.txt"
