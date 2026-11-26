@@ -5,6 +5,8 @@ mkdir -p "$HOME/Documents"
 ditto "$VEO_QA_DRIVE_NHAN/drive" "$sync"
 index="$(find "$sync" -name veo.json -type f -print)"
 [[ -f "$index" ]]
+name="$(jq -er .name "$index")"
+[[ "$name" == 'Nguon Quay Drive (Drive)' ]]
 original="$(jq -er '.plan.sources[0].original' "$index")"
 count="$(jq -er 'select(.plan.canvas=="ngang") | .files | length' "$index")"
 source_hash="$(jq -er --arg original "$original" '.files[] | select(.path==$original) | .sha' "$index")"
@@ -28,6 +30,11 @@ click 'Mở bản sao'
 ui wait 'Đã tạo dự án từ Drive trong danh sách Đang làm.' 45
 ui key-app 53
 ui wait 'Xuất video' 85
+ui wait "$name" 15
+if ui wait "$name (Drive)" 1 2>/dev/null; then
+  echo 'Tên dự án lặp hậu tố (Drive).' >&2
+  exit 1
+fi
 capture '03-du-an-windows-tren-mac'
 click 'Xuất video'
 click '720p'
@@ -62,13 +69,14 @@ if ! await_stop; then
 fi
 start_app mo-lai
 ui wait 'Thành phẩm' 85
+ui wait "$name" 15
 ui click 'Phát'
 ui wait 'Dừng' 10
 capture '04-phat-mp4-sau-khi-mo-lai'
 [[ "$(shasum -a 256 "$output" | awk '{print $1}')" == "$hash" ]]
-jq -n --arg mac "$(sw_vers -productVersion)" --arg worker "$worker" \
+jq -n --arg mac "$(sw_vers -productVersion)" --arg chip "$arch" --arg worker "$worker" --arg name "$name" \
   --arg original "$source_hash" --arg output "$hash" --arg bundle "$VEO_QA_DRIVE_RETURN_SHA" \
   --argjson count "$count" --slurpfile video "$proof/mp4.json" \
-  '{macOS:$mac,chip:"arm64",source:"a5c83fc344e43d056eb2cb191f5365bbb759f2f1",workerSha256:$worker,
+  '{macOS:$mac,chip:$chip,source:"854de70ab15ae0c843e967a13830672413297fb5",workerSha256:$worker,projectName:$name,
     sha256NhanQuaDrive:$bundle,sourceClipSha256:$original,outputSha256:$output,mediaCount:$count,video:$video[0].streams,
     restoredOffline:true,playedAfterRestart:true,keptBothEdges:true}' | tee "$proof/ket-qua.json"

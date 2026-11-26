@@ -13,7 +13,7 @@ case "$(uname -m)" in
   *) exit 2 ;;
 esac
 tag=veo-qa-mac-intel-20261126
-dmg="Veo-QA-mac-${tag_arch}_0.3.24-r33.dmg"
+dmg="Veo-QA-mac-${tag_arch}_0.3.24-${VEO_QA_REVISION:-r33}.dmg"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"
 runtime="$data/phan-chay-$runtime_arch"
 installed="$scratch/Vèo.app"
@@ -57,7 +57,7 @@ bin="$installed/Contents/MacOS/msx-phong-dung"
 [[ "$(lipo -archs "$bin")" == "$arch" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist")" == 0.3.24 ]]
 worker="$(shasum -a 256 "$resources/worker/dung-app.mjs" | awk '{print $1}')"
-[[ "$worker" == '70930267c689bc91a09f31db2435e848d46b9f509360b85eef4046c7fd04ba54' ]]
+[[ "$worker" == "${VEO_QA_EXPECTED_WORKER:-70930267c689bc91a09f31db2435e848d46b9f509360b85eef4046c7fd04ba54}" ]]
 
 jq -er '.items[] | [.tep,.sha256] | @tsv' "$resources/phan-chay.json" > "$scratch/goi.tsv"
 while IFS=$'\t' read -r name digest; do
