@@ -1,0 +1,57 @@
+name: Tạo video có lời đọc trong WebView2 của Vèo
+on:
+  push:
+    branches: [kiem-veo-tao-video-webview2-20261126]
+permissions:
+  contents: read
+jobs:
+  giong-windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Lấy đúng bộ cài thử từ bản nháp
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-storyboard-ui'
+          $Tag = 'veo-qa-windows-20261126-7bc6cdf'
+          $Name = 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r17.exe'
+          $IsDraft = gh release view $Tag -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $IsDraft -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '86021efdacbd262f9ef2696a7f886c73e9744dabdb98863405db20537ee255db') {
+            throw 'Không lấy được đúng bộ cài thử.'
+          }
+      - name: Nghe thử lời đọc và xuất storyboard trong app đã cài
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-storyboard-ui'
+          $Install = Join-Path $Qa 'app'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or (Test-Path $Install)) { throw 'Cần máy thử có thư mục cài trống.' }
+          $Installer = Join-Path $Qa 'Veo-Windows-Signed-Flow-QA_0.3.24_x64-setup-r17.exe'
+          $Process = Start-Process $Installer -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
+          $env:VEO_QA_WORKER_SHA = (Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash.ToLowerInvariant()
+          if ($env:VEO_QA_WORKER_SHA -ne '600fd2dd5c27650c0ac46ec3d5d4692e6e08092db75597ad0da45f1efe644865') { throw 'Sai mã phần dựng.' }
+          $env:VEO_QA_SOURCE = '59ea9a4ae0379bedaa41f05265e90ce432289701'
+          $env:VEO_QA_OS = (Get-CimInstance Win32_OperatingSystem).Caption
+          $Data = Join-Path $env:APPDATA 'vn.msxgroup.phongdung'
+          if (Test-Path $Data) { throw 'Cần máy thử có kho trống.' }
+          $env:DUNG_CHEP_LOI = 'may'
+          $env:NO_PROXY = '127.0.0.1,localhost'
+          $Script = Join-Path $Qa 'kiem-tao-video-tu-loi-doc.ps1'
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/kiem-tao-video-tu-loi-doc.ps1" -OutFile $Script
+          & pwsh -NoProfile -STA -File $Script -Install $Install -Qa $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Ca lời đọc hoặc dựng storyboard chưa đạt.' }
+      - name: Lưu ảnh giao diện và MP4
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: veo-windows-storyboard-ui-59ea9a4
+          path: ${{ runner.temp }}/veo-qa-storyboard-ui/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
