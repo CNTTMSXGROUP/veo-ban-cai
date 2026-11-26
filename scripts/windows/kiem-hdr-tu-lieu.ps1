@@ -63,7 +63,8 @@ function Ui([string]$Name) { Wait-Moc { Find-Ui $Name } 15 "Không thấy điề
 function Keys([string]$Key) { [System.Windows.Forms.SendKeys]::SendWait($Key) }
 function Click-Ui($Item) {
     $Item.SetFocus()
-    Keys '{ENTER}'
+    Start-Sleep -Milliseconds 220
+    Mouse-Ui $Item
 }
 function Mouse-Ui($Item) {
     $Rect = $Item.Current.BoundingRectangle
