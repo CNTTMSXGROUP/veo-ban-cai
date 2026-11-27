@@ -59,7 +59,7 @@ function Click-Ui($Item) {
 }
 
 function Focus-Ui($App) {
-  if (!$Shell.AppActivate($App.Id)) { throw 'Không lấy được tiêu điểm cửa sổ thử.' }
+  $null = Wait-Moc { $Shell.AppActivate($App.Id) } 20 'Không lấy được tiêu điểm cửa sổ thử.'
 }
 
 function Press-Ui($App, [string]$Key) {
@@ -152,6 +152,7 @@ try {
   @{ refresh='veo-qa-khong-phai-token'; id='00000000-0000-4000-8000-000000000026'; email='veo-qa@example.invalid'; ten='Kho thử Windows' } |
     ConvertTo-Json -Compress | Set-Content -LiteralPath $Session -Encoding utf8
   $App = Open-KhoCu
+  $KhongTuMo = $null
   $null = Wait-Moc { Save-Ui $App '01-kho-ban-cu' } 12 'Không chụp được kho bản cũ.'
   if ($CheDo -eq 'thay') {
     # Trước khi phát hành: chạy bộ cài mới đè lên bản đã phát hành, đúng tham số trình cập nhật dùng.
@@ -182,9 +183,20 @@ try {
   $Location = (Get-ItemPropertyValue -Path $Key -Name InstallLocation).Trim('"')
   if ($Location -ne $Install) { throw "Bộ cài đã đổi thư mục cài: $Location" }
   if ($CheDo -eq 'that' -and !$Custom) {
-    $App = Wait-Moc { Find-Veo } 60 'Vèo chưa tự mở sau khi bấm Cập nhật.'
-    Press-Ui $App '%{F4}'
-    if (!$App.WaitForExit(25000)) { Stop-Process -Id $App.Id; $App.WaitForExit() }
+    $Moc = [DateTime]::UtcNow
+    try {
+      # Chờ cả cửa sổ, không chỉ tiến trình vừa sinh ra.
+      $App = Wait-Moc { $P = Find-Veo; if ($P) { $P.Refresh(); if ($P.MainWindowHandle -ne [IntPtr]::Zero) { $P } } } 120 'Vèo chưa tự mở sau khi bấm Cập nhật.'
+      Write-Host "Bản 0.3.24 tự mở lại sau $([int]([DateTime]::UtcNow - $Moc).TotalSeconds) giây"
+      Start-Sleep -Seconds 3
+      try { $null = Save-Ui $App '02b-tu-mo-lai' } catch { Write-Host 'Không chụp được cửa sổ tự mở lại.' }
+      $null = $App.CloseMainWindow()
+      if (!$App.WaitForExit(25000)) { Stop-Process -Id $App.Id; $App.WaitForExit() }
+    } catch {
+      $KhongTuMo = $_.Exception.Message
+      Write-Host "KHONG TU MO LAI: $KhongTuMo"
+      Get-Process msx-phong-dung -ErrorAction SilentlyContinue | Stop-Process
+    }
     Start-Sleep -Seconds 5
   }
   $Expected = @{
@@ -227,6 +239,7 @@ try {
   python (Join-Path $Qa 'kiem-chuyen-kho.py') $Migration $Install (Join-Path $Install 'worker/dung-app.mjs') (Join-Path $Install 'worker/fonts')
   if ($LASTEXITCODE -ne 0) { throw 'Kho thử không khôi phục sau khi dừng giữa giao dịch.' }
   Copy-Item -LiteralPath (Join-Path $Migration 'ket-qua.json') -Destination (Join-Path $Qa 'minh-chung/chuyen-kho.json')
+  if ($KhongTuMo) { throw "Nâng cấp đạt nhưng không tự mở lại: $KhongTuMo" }
 } catch {
   if ($App -and !$App.HasExited) { try { $null = Save-Ui $App '99-loi' } catch { Write-Host 'Không chụp được lỗi.' } }
   throw

@@ -24,14 +24,23 @@ mkdir -p "$proof" "$scratch/nhac" "$scratch/ban-sao" "$scratch/kho-r27" "$qa/goi
 ui() { "$scratch/bam-cua-so" "$app_pid" "$@"; }
 click() { ui click "$@"; sleep .25; }
 capture() { ui capture "$proof/$1.png"; }
+chup_may() {
+  screencapture -x "$proof/man-hinh-$1.png" || true
+  ps -axo pid,ppid,etime,command > "$proof/tien-trinh-$1.txt" || true
+}
 cleanup() {
   result=$?
+  mkdir -p "$proof/su-co"
+  find "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports -type f \( -iname '*phong-dung*' -o -iname 'V*o*.ips' \) -exec cp {} "$proof/su-co/" \; 2>/dev/null || true
+  if [[ "$result" -ne 0 ]]; then
+    chup_may loi
+    for log in "$scratch"/veo-*.log; do
+      if [[ -f "$log" ]]; then grep -HE 'kiểm bản mới|khởi động|bo qua|phần chạy|Error|error|panic' "$log" | tail -30 >> "$proof/veo-log.txt" || true; fi
+    done
+  fi
   if [[ "$result" -ne 0 && -n "$app_pid" ]]; then
     ui dump 'lỗi' > "$proof/dieu-khien-khi-loi.txt" 2>/dev/null || true
     capture 'loi' || true
-    for log in "$scratch"/veo-*.log; do
-      if [[ -f "$log" ]]; then grep -HE 'kiểm bản mới|khởi động|bo qua|phần chạy|Error|error' "$log" | tail -30 >> "$proof/veo-log.txt" || true; fi
-    done
     /usr/bin/log show --last 4m --style compact --predicate '(process CONTAINS "WebKit" OR process == "msx-phong-dung") AND (eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "terminate")' | tail -90 > "$proof/webkit.log" || true
   fi
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
@@ -140,6 +149,7 @@ sqlite3 -readonly "$db" ".backup \"$scratch/ban-sao/phong-dung.db\""
 [[ "$(sqlite3 -readonly "$scratch/ban-sao/phong-dung.db" 'PRAGMA integrity_check;')" == ok ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 ditto "$data/du-an" "$scratch/ban-sao/du-an"
 
+tu_mo_lai='chưa áp dụng'
 if [[ "$mode" == thay ]]; then
   # Trước khi phát hành: thay gói ứng dụng tại chỗ, đúng việc trình cập nhật làm trên Mac.
   [[ -z "$(app_pids)" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
@@ -165,10 +175,17 @@ else
   ui wait 'Cập nhật ngay' 15
   capture '03b-hop-co-gi-moi'
   click 'Cập nhật ngay'
-  for try in {1..240}; do
+  moc=$SECONDS
+  while (( SECONDS - moc < 120 )); do
     if [[ "$(version 2>/dev/null || true)" == '0.3.24' ]] && ! ps -p "$old_pid" >/dev/null 2>&1; then break; fi
-    sleep .25
+    sleep .5
   done
+  if ps -p "$old_pid" >/dev/null 2>&1; then
+    echo "Sau $((SECONDS - moc)) giây bản 0.3.23 chưa thoát" >&2
+    tu_mo_lai='KHONG: 0.3.23 chưa thoát'; chup_may chua-thoat; kill "$old_pid" || true
+  else
+    echo "Bản 0.3.23 thoát sau $((SECONDS - moc)) giây" >&2
+  fi
 fi
 [[ "$(version)" == '0.3.24' ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 codesign --verify --deep --strict "$installed"
@@ -177,12 +194,22 @@ worker="$(hash "$installed/Contents/Resources/worker/dung-app.mjs")"
 if [[ "$mode" == thay ]]; then
   start_app moi
 else
-  for try in {1..120}; do
-    app_pid="$(app_pids | awk -v old="$old_pid" '$1 != old {print}')"
+  moc=$SECONDS; app_pid=''
+  while (( SECONDS - moc < 120 )); do
+    app_pid="$(app_pids | awk -v old="$old_pid" '$1 != old {print; exit}')"
     if [[ -n "$app_pid" ]]; then break; fi
-    sleep .25
+    sleep .5
   done
-  [[ "$app_pid" =~ ^[0-9]+$ && "$app_pid" != "$old_pid" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+  if [[ -n "$app_pid" ]]; then
+    echo "Bản 0.3.24 tự mở lại sau $((SECONDS - moc)) giây" >&2
+    [[ "$tu_mo_lai" == KHONG* ]] || tu_mo_lai="tự mở sau $((SECONDS - moc)) giây"
+  else
+    # Ghi lại rồi tự mở để vẫn kiểm được dữ liệu và bản mới; bài đỏ ở cuối.
+    echo "Bản 0.3.24 chưa tự mở lại sau 120 giây" >&2
+    [[ "$tu_mo_lai" == KHONG* ]] || tu_mo_lai='KHONG: chưa tự mở lại'
+    chup_may khong-tu-mo-lai
+    start_app moi
+  fi
 fi
 ready 'Lưu trữ · 1'
 ui enter-app 'Lưu trữ · 1'
@@ -247,7 +274,8 @@ else
   capture '07-kiem-khung-xem-ban-cu'
 fi
 quit_app
-jq -n --arg os "$(sw_vers -productVersion)" --arg chip "$arch" --arg mode "$mode" --arg worker "$worker" \
+jq -n --arg tuMoLai "$tu_mo_lai" --arg os "$(sw_vers -productVersion)" --arg chip "$arch" --arg mode "$mode" --arg worker "$worker" \
   --arg package "$(hash "$new")" --arg old "$old_hash" --arg new "$new_hash" --argjson versions "$so_ban" --argjson oldPlay "$old_play" \
-  '{macOS:$os,chip:$chip,cachCapNhat:$mode,tu:"0.3.23",den:"0.3.24",workerSha256:$worker,goiSha256:$package,shaVideoCu:$old,shaVideoMoi:$new,soBanSua:$versions,baoToanKho:true,moLaiPhat:true,quayLuiBangBanSao:true,phatLaiBangBanCu:$oldPlay}' |
+  '{tuMoLai:$tuMoLai,macOS:$os,chip:$chip,cachCapNhat:$mode,tu:"0.3.23",den:"0.3.24",workerSha256:$worker,goiSha256:$package,shaVideoCu:$old,shaVideoMoi:$new,soBanSua:$versions,baoToanKho:true,moLaiPhat:true,quayLuiBangBanSao:true,phatLaiBangBanCu:$oldPlay}' |
   tee "$proof/ket-qua.json"
+[[ "$tu_mo_lai" != KHONG* ]] || { echo "Nâng cấp đạt nhưng không tự mở lại: $tu_mo_lai" >&2; exit 1; }

@@ -7,7 +7,7 @@ permissions:
 env:
   TAG: veo-qa-0324-ban-chinh-2
   # thay: cài đè lên bản đã phát hành (trước khi công khai). that: tự cập nhật từ đường công khai (sau khi công khai).
-  CHE_DO: that
+  CHE_DO: thay
 jobs:
   do-hoa-mac:
     runs-on: ${{ matrix.runner }}
