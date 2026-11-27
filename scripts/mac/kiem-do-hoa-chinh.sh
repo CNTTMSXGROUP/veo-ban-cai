@@ -128,7 +128,13 @@ await_stop() {
 }
 
 start_app moi
-if ! ui click 'Dùng ngay' 4 2>/dev/null; then ui wait 'Tạo mới' 90; fi
+for try in {1..60}; do
+  ui click 'Dùng ngay' 1 2>/dev/null || true
+  if ui wait 'Tạo mới' 1 2>/dev/null; then break; fi
+done
+sleep 2
+ui click 'Dùng ngay' 1 2>/dev/null || true
+ui wait 'Tạo mới' 10
 ui fit 'cửa sổ thường'
 [[ ! -e "$data/goi-do-hoa/$renderer_sha/render-hyperframes" ]]
 click 'Tạo mới'

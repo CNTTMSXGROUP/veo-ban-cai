@@ -89,8 +89,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: macos-26, ten: arm64, goi: aarch64, cu: 363a4f2a00bc92c2b42670463771b9ad57ca9e0f342e90b2a821601c5d0c4699, moi: 'b4b5be0e7b458edf11cf8a05f0f6d83754c1d13e3f51f0347dbbc6c24447c2a5' }
-          - { runner: macos-15-intel, ten: x64, goi: x64, cu: 30e67062d56c547ebea94cdd1230b35c8fa68b29ff0d4ca78450846c6efc687f, moi: '3656ec644c8d27b0f27b6ec8869bcadb0fee215a3e185803f4502f0e2f10e9cc' }
+          - { runner: macos-26, ten: arm64, goi: aarch64, duoi: '', cu: 363a4f2a00bc92c2b42670463771b9ad57ca9e0f342e90b2a821601c5d0c4699, moi: 'b4b5be0e7b458edf11cf8a05f0f6d83754c1d13e3f51f0347dbbc6c24447c2a5' }
+          - { runner: macos-15-intel, ten: x64, goi: x64, duoi: '-intel', cu: 30e67062d56c547ebea94cdd1230b35c8fa68b29ff0d4ca78450846c6efc687f, moi: '3656ec644c8d27b0f27b6ec8869bcadb0fee215a3e185803f4502f0e2f10e9cc' }
     timeout-minutes: 16
     steps:
       - name: Nâng từ bản 0.3.23 đã phát hành, giữ dự án cũ, thử quay lui
@@ -99,6 +99,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VEO_QA_WORKER_SHA: 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333'
           GOI: ${{ matrix.goi }}
+          DUOI: ${{ matrix.duoi }}
           CU: ${{ matrix.cu }}
           MOI: ${{ matrix.moi }}
         run: |
@@ -114,8 +115,9 @@ jobs:
           curl -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
           printf '%s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  ggml-base.en-q5_1.bin' | shasum -a 256 -c
           base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
-          curl -fsSL --retry 2 --max-time 30 "$base/bam-cua-so-nang-cap.swift" -o "$qa/bam-cua-so.swift"
-          curl -fsSL --retry 2 --max-time 30 "$base/kiem-nang-cap-chinh.sh" -o "$qa/kiem-nang-cap-chinh.sh"
+          curl -fsSL --retry 2 --max-time 30 "$base/bam-cua-so-nang-cap$DUOI.swift" -o "$qa/bam-cua-so.swift"
+          curl -fsSL --retry 2 --max-time 30 "$base/kiem-nang-cap-chinh$DUOI.sh" -o "$qa/kiem-nang-cap-chinh.sh"
+          curl -fsSL --retry 2 --max-time 30 "$base/tao-kho-0323.mjs" -o "$qa/tao-kho-0323.mjs"
           bash "$qa/kiem-nang-cap-chinh.sh" "$qa" "$qa/cu/$ten_cu" "$qa/moi/$ten_moi" "$CHE_DO"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -145,6 +147,8 @@ jobs:
           gh release download $env:TAG -R $env:GITHUB_REPOSITORY --dir $Qa --pattern Veo_0.3.24_x64-setup.exe
           if ((Get-FileHash (Join-Path $Qa 'Veo_0.3.23_x64-setup.exe')).Hash -ne '60740d5c78b63dcf36391683b457ff9be595399aa7ab3c88d2377ef9a952008b') { throw 'Sai bộ cài 0.3.23.' }
           if ((Get-FileHash (Join-Path $Qa 'Veo_0.3.24_x64-setup.exe')).Hash -ne '705752874b9295eaba6256f805cb7d9851db74ec3ba271150f759ca82af00506') { throw 'Sai bộ cài 0.3.24.' }
+          gh release download veo-qa-windows-20261126-7bc6cdf -R $env:GITHUB_REPOSITORY --dir $Qa --pattern qa-upgrade-voice.mp4
+          if ((Get-FileHash (Join-Path $Qa 'qa-upgrade-voice.mp4')).Hash -ne '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71') { throw 'Sai clip thử.' }
           $Model = Join-Path $Qa 'ggml-base.en-q5_1.bin'
           curl.exe -L --max-time 180 --retry 2 --fail --silent --show-error 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o $Model
           if ($LASTEXITCODE -ne 0 -or (Get-FileHash $Model).Hash -ne '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f') { throw 'Sai model tiếng Anh.' }
