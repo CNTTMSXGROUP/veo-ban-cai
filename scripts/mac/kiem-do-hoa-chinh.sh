@@ -140,7 +140,13 @@ ui fit 'cửa sổ thường'
 click 'Tạo mới'
 click 'Từ ý tưởng / Storyboard'
 printf '%s' 'Cảnh thử đồ họa' | /usr/bin/pbcopy
-ui replace-app 'Tên video'
+for try in 1 2 3; do
+  ui replace-app 'Tên video'
+  if ui wait 'Cảnh thử đồ họa' 8; then break; fi
+  echo "Lần dán $try chưa vào ô tên video." | tee -a "$proof/dan-ten.txt"
+done
+ui wait 'Cảnh thử đồ họa' 2
+capture '00-da-dien-ten'
 printf 4 | /usr/bin/pbcopy
 ui replace-app 'Số giây cảnh 1'
 click 'Ngang 16:9'
@@ -163,6 +169,17 @@ for try in {1..45}; do
 done
 [[ -f "$data/goi-do-hoa/$renderer_sha/render-hyperframes/render.mjs" ]]
 click 'Chữ động'
+wait_preview() {
+  local end=$((SECONDS + 140))
+  while ((SECONDS < end)); do
+    if ui wait 'Video xem thử đồ họa' 2 2>/dev/null; then return 0; fi
+    if ui wait 'Không nối được với phần dựng của app.' 1 2>/dev/null; then
+      printf 'Mất kết nối sau %s ms\n' "$(( $(now_ms) - $1 ))" | tee -a "$proof/phan-dung-theo-gio.log"
+      return 1
+    fi
+  done
+  return 1
+}
 if [[ "$arch" == x86_64 ]]; then
   sample_worker() {
     while kill -0 "$app_pid" 2>/dev/null; do
@@ -183,17 +200,6 @@ if [[ "$arch" == x86_64 ]]; then
   }
   sample_worker >> "$proof/phan-dung-theo-gio.log" 2>&1 &
   sample_pid=$!
-  wait_preview() {
-    local end=$((SECONDS + 140))
-    while ((SECONDS < end)); do
-      if ui wait 'Video xem thử đồ họa' 2 2>/dev/null; then return 0; fi
-      if ui wait 'Không nối được với phần dựng của app.' 1 2>/dev/null; then
-        printf 'Mất kết nối sau %s ms\n' "$(( $(now_ms) - $1 ))" | tee -a "$proof/phan-dung-theo-gio.log"
-        return 1
-      fi
-    done
-    return 1
-  }
   renderer_pid() {
     ps -axww -o pid=,ppid=,command= | awk -v app="$app_pid" '
       { parent[$1]=$2; if (index($0, "render.mjs --chay-lien-tiep")) workers[$1]=1 }
