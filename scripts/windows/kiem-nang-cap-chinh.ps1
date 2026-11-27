@@ -168,7 +168,11 @@ try {
       if ($Item -and $Item.Current.IsEnabled) { $Item }
     } 300 'Bản 0.3.23 chưa thấy bản 0.3.24 công khai.'
     $null = Wait-Moc { Save-Ui $App '02-goi-da-san-sang' } 12 'Không chụp được nút cập nhật.'
-    if ($Custom) { Press-Ui $App '%{F4}' } else { Focus-Ui $App; Click-Ui $Button }
+    if ($Custom) { Press-Ui $App '%{F4}' } else {
+      # Bản 0.3.23: nút trên thanh công cụ chỉ mở hộp "có gì mới", cài bằng nút trong hộp.
+      Focus-Ui $App; Click-Ui $Button
+      Click-Ui (Wait-Moc { $N = Find-Ui $App 'Cập nhật ngay'; if ($N -and $N.Current.IsEnabled) { $N } } 20 'Không thấy nút Cập nhật ngay.')
+    }
     if (!$App.WaitForExit(120000)) { throw 'Vèo 0.3.23 còn chạy sau lệnh cài.' }
   }
   $null = Wait-Moc {
