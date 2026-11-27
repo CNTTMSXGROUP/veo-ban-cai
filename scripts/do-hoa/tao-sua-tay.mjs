@@ -20,7 +20,7 @@ await mkdir(music, { recursive: true });
 await writeFile(join(music, 'kho-nhac.json'), '[]\n');
 
 // Nguồn kẻ ô 8 px: đo được vùng nào bị làm mờ.
-const clip = join(work, 'Nguồn kẻ ô.mp4');
+const clip = join(work, 'nguon-ke-o.mp4');
 const duration = Number(execFileSync(ffprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', voice], { encoding: 'utf8' }));
 assert(duration > 3, 'Tiếng nguồn quá ngắn');
 execFileSync(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', "color=c=gray:s=1080x1920:r=30,format=yuv420p,geq=lum='255*mod(floor(X/8)+floor(Y/8),2)':cb=128:cr=128",
@@ -69,7 +69,7 @@ try {
     const sourceId = v.plan.sources[0].id;
     const sticker = (await call('projects/' + id + '/nhan-dan', { id: 'mui-ten' })).id;
     v = await call('projects/' + id);
-    await act('placeAsset', [sticker, '', '', { at: { sourceId, startSec: 0, endSec: 2.6 }, box: { x: 240, y: 760, w: 420, h: 300 } }]);
+    await act('placeAsset', [sticker, '', '', { at: { sourceId, startSec: 0, endSec: 2.6 }, fit: 'nho', box: { x: 240, y: 760, w: 420, h: 300 } }]);
     const mask = { mode: 'blur', shape: 'rect', strength: 70, soft: 45, color: '#101014' };
     await act('placeMask', [mask, { sourceId, startSec: 3.4, endSec: 5 }, { box: { x: 600, y: 300, w: 400, h: 400 } }]);
 

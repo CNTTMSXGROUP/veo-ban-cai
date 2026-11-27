@@ -57,11 +57,18 @@ jobs:
           if ((Get-FileHash (Join-Path $Qa 'qa-upgrade-voice.mp4')).Hash -ne '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71') { throw 'Sai tiếng nguồn.' }
           $Script = Join-Path $Qa 'tao-sua-tay.mjs'
           Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/do-hoa/tao-sua-tay.mjs" -OutFile $Script
-          $env:VEO_QA_DATA = Join-Path $Qa 'Kho thử'
+          $env:VEO_QA_DATA = Join-Path $Qa 'kho-thu'
           $env:VEO_QA_CLIP = Join-Path $Qa 'qa-upgrade-voice.mp4'
           $env:VEO_QA_MODEL = $Model
           & (Join-Path $Install 'node.exe') $Script $Install (Join-Path $Install 'worker') $Qa
           if ($LASTEXITCODE -ne 0) { throw 'Ca xuất vùng làm mờ trên Windows thất bại.' }
+          # Dò riêng, không chặn: thư mục kho có chữ tiếng Việt thì bộ chép lời trên Windows có chạy được không.
+          $QaDau = Join-Path $Qa 'co-dau'
+          New-Item -ItemType Directory -Path $QaDau | Out-Null
+          $env:VEO_QA_DATA = Join-Path $QaDau 'Kho thử'
+          & (Join-Path $Install 'node.exe') $Script $Install (Join-Path $Install 'worker') $QaDau
+          "Kho có dấu: mã thoát $LASTEXITCODE" | Tee-Object -FilePath (Join-Path $Qa 'minh-chung/kho-co-dau.txt')
+          $global:LASTEXITCODE = 0
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
