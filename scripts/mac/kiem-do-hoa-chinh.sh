@@ -12,7 +12,7 @@ case "$(uname -m)" in
   x86_64) tag_arch=x64; arch=x86_64; runtime_arch=x86_64 ;;
   *) exit 2 ;;
 esac
-tag=veo-qa-0324-ban-chinh
+tag=veo-qa-0324-ban-chinh-2
 dmg_arch="$tag_arch"; if [[ "$tag_arch" == arm64 ]]; then dmg_arch=aarch64; fi
 dmg="Veo_0.3.24_${dmg_arch}.dmg"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"

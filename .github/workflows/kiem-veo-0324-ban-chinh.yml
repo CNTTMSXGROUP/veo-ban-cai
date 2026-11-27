@@ -5,7 +5,7 @@ on:
 permissions:
   contents: write
 env:
-  TAG: veo-qa-0324-ban-chinh
+  TAG: veo-qa-0324-ban-chinh-2
   # thay: cài đè lên bản đã phát hành (trước khi công khai). that: tự cập nhật từ đường công khai (sau khi công khai).
   CHE_DO: thay
 jobs:
@@ -15,16 +15,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: macos-26, ten: arm64, dmg: '61e19d1b9336ef70a27524714b51826a38e4a84bd6b8c2eddd1cfe67011446b0' }
-          - { runner: macos-15-intel, ten: x64-lan1, dmg: '5a93edf619937917ab58031daa13ff25ea2ae8c0c1470d5177be2a20b979ffd8' }
-          - { runner: macos-15-intel, ten: x64-lan2, dmg: '5a93edf619937917ab58031daa13ff25ea2ae8c0c1470d5177be2a20b979ffd8' }
+          - { runner: macos-26, ten: arm64, dmg: 'cfac780ac4c1643b31629b1ac7b175c072510e0f093b5cc3263bca51c676e2f4' }
+          - { runner: macos-15-intel, ten: x64-lan1, dmg: '7f3ebd4a326e8fac46cb4238b3b618a94fef210798013ccb57dd531b96c8b9d3' }
+          - { runner: macos-15-intel, ten: x64-lan2, dmg: '7f3ebd4a326e8fac46cb4238b3b618a94fef210798013ccb57dd531b96c8b9d3' }
     timeout-minutes: 14
     steps:
       - name: Cài mới, tải bộ dựng, xuất chữ động và phát lại
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          VEO_QA_WORKER_SHA: 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333'
+          VEO_QA_WORKER_SHA: 'f849747a27443d3fd8ee906c5eba16fae82723c8fa753524a42d1c8dc2595941'
           VEO_QA_DMG_SHA: ${{ matrix.dmg }}
         run: |
           set -euo pipefail
@@ -55,12 +55,12 @@ jobs:
           $Name = 'Veo_0.3.24_x64-setup.exe'
           if ((gh release view $env:TAG -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
           gh release download $env:TAG -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
-          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '705752874b9295eaba6256f805cb7d9851db74ec3ba271150f759ca82af00506') { throw 'Sai bộ cài.' }
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '1df366af3aa84f7847f45ed37fadb18dba4560442815363a591cf387c0b4d49a') { throw 'Sai bộ cài.' }
           $Install = Join-Path $Qa 'app'
           $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru
           if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
           if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
-          if ((Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash -ne 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333') { throw 'Sai mã phần dựng.' }
+          if ((Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash -ne 'f849747a27443d3fd8ee906c5eba16fae82723c8fa753524a42d1c8dc2595941') { throw 'Sai mã phần dựng.' }
           $Manifest = Get-Content (Join-Path $Install 'phan-do-hoa.json') -Raw -Encoding utf8 | ConvertFrom-Json
           gh release download $env:TAG -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Manifest.items[0].tep
           if ($LASTEXITCODE -ne 0) { throw 'Không tải được gói bộ dựng.' }
@@ -89,15 +89,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: macos-26, ten: arm64, goi: aarch64, duoi: '', cu: 363a4f2a00bc92c2b42670463771b9ad57ca9e0f342e90b2a821601c5d0c4699, moi: 'b4b5be0e7b458edf11cf8a05f0f6d83754c1d13e3f51f0347dbbc6c24447c2a5' }
-          - { runner: macos-15-intel, ten: x64, goi: x64, duoi: '-intel', cu: 30e67062d56c547ebea94cdd1230b35c8fa68b29ff0d4ca78450846c6efc687f, moi: '3656ec644c8d27b0f27b6ec8869bcadb0fee215a3e185803f4502f0e2f10e9cc' }
+          - { runner: macos-26, ten: arm64, goi: aarch64, duoi: '', cu: 363a4f2a00bc92c2b42670463771b9ad57ca9e0f342e90b2a821601c5d0c4699, moi: 'dc5b960cc1285bdd07f5260b8e43e54830dda40418a12d3bb071f5e97131d308' }
+          - { runner: macos-15-intel, ten: x64, goi: x64, duoi: '-intel', cu: 30e67062d56c547ebea94cdd1230b35c8fa68b29ff0d4ca78450846c6efc687f, moi: '7109962c26053804cbf8c6b9a989f2f06211d5311caa0d0486d40624077cdf97' }
     timeout-minutes: 16
     steps:
       - name: Nâng từ bản 0.3.23 đã phát hành, giữ dự án cũ, thử quay lui
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          VEO_QA_WORKER_SHA: 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333'
+          VEO_QA_WORKER_SHA: 'f849747a27443d3fd8ee906c5eba16fae82723c8fa753524a42d1c8dc2595941'
           GOI: ${{ matrix.goi }}
           DUOI: ${{ matrix.duoi }}
           CU: ${{ matrix.cu }}
@@ -138,7 +138,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          VEO_QA_WORKER_SHA: 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333'
+          VEO_QA_WORKER_SHA: 'f849747a27443d3fd8ee906c5eba16fae82723c8fa753524a42d1c8dc2595941'
           VEO_CA: ${{ matrix.ca }}
         run: |
           $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-signed'
@@ -146,7 +146,7 @@ jobs:
           gh release download v0.3.23 -R $env:GITHUB_REPOSITORY --dir $Qa --pattern Veo_0.3.23_x64-setup.exe
           gh release download $env:TAG -R $env:GITHUB_REPOSITORY --dir $Qa --pattern Veo_0.3.24_x64-setup.exe
           if ((Get-FileHash (Join-Path $Qa 'Veo_0.3.23_x64-setup.exe')).Hash -ne '60740d5c78b63dcf36391683b457ff9be595399aa7ab3c88d2377ef9a952008b') { throw 'Sai bộ cài 0.3.23.' }
-          if ((Get-FileHash (Join-Path $Qa 'Veo_0.3.24_x64-setup.exe')).Hash -ne '705752874b9295eaba6256f805cb7d9851db74ec3ba271150f759ca82af00506') { throw 'Sai bộ cài 0.3.24.' }
+          if ((Get-FileHash (Join-Path $Qa 'Veo_0.3.24_x64-setup.exe')).Hash -ne '1df366af3aa84f7847f45ed37fadb18dba4560442815363a591cf387c0b4d49a') { throw 'Sai bộ cài 0.3.24.' }
           gh release download veo-qa-windows-20261126-7bc6cdf -R $env:GITHUB_REPOSITORY --dir $Qa --pattern qa-upgrade-voice.mp4
           if ((Get-FileHash (Join-Path $Qa 'qa-upgrade-voice.mp4')).Hash -ne '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71') { throw 'Sai clip thử.' }
           $Model = Join-Path $Qa 'ggml-base.en-q5_1.bin'

@@ -55,7 +55,7 @@ jq -sr 'map(.items) | add | unique_by(.tep)[] | [.tep,.sha256]|@tsv' "$scratch/g
 while IFS=$'\t' read -r name digest; do
   [[ "$name" =~ ^[a-z0-9-]+\.tar\.gz$ ]]
   if ! curl -fLsS --retry 1 --max-time 90 "https://github.com/$GITHUB_REPOSITORY/releases/download/phan-chay/$name" -o "$qa/goi/runtime/$name"; then
-    gh release download veo-qa-0324-ban-chinh -R "$GITHUB_REPOSITORY" --dir "$qa/goi/runtime" --pattern "$name"
+    gh release download veo-qa-0324-ban-chinh-2 -R "$GITHUB_REPOSITORY" --dir "$qa/goi/runtime" --pattern "$name"
   fi
   [[ "$(hash "$qa/goi/runtime/$name")" == "$digest" ]]
 done < "$scratch/goi.tsv"
