@@ -215,10 +215,15 @@ sx=$((cx + w / 2 - 1)); sy=$((cy + h / 2 - 1))
 keo 'Kéo góc khung ra' '17-keo-goc-ra' "$sx" "$sy" $((sx + 40)) $((sy + 30)) '(( w > w0 ))'
 sx=$((cx + w / 2 - 1)); sy=$((cy + h / 2 - 1))
 keo 'Kéo góc khung vào' '18-keo-goc-vao' "$sx" "$sy" $((sx - 50)) $((sy - 36)) '(( w < w0 ))'
+truocx=$cx truocy=$cy
 keo 'Kéo dời khung' '19-doi-khung' "$cx" "$cy" $((cx - 30)) $((cy - 40)) '(( cx < x0 && cy < y0 ))'
-h1="$(dau)"; x1=$cx
+h1="$(dau)"
 ui key-app 6 cmd; sleep 2
-if [[ "$(dau)" != "$h1" ]] && khung && (( cx != x1 )); then ket DAT 'Hoàn tác trả khung về chỗ cũ' '20-hoan-tac'; else ket HONG 'Hoàn tác trả khung về chỗ cũ' '20-hoan-tac'; fi
+h2="$(dau)"
+# Hoàn tác bỏ chọn theo đúng thiết kế: bấm lại vào khối rồi mới đọc vị trí khung.
+read -r _ bx by _ <<<"$(khoi)"
+lai click "$bx" "$by"; sleep 1.2
+if [[ "$h2" != "$h1" ]] && khung && (( cx == truocx && cy == truocy )); then ket DAT "Hoàn tác trả khung về chỗ cũ ($cx $cy)" '20-hoan-tac'; else ket HONG "Hoàn tác: bản $h1 thành $h2, khung $cx $cy, cũ $truocx $truocy" '20-hoan-tac'; fi
 
 line="$(khoi)"; read -r _ bx by bw _ <<<"$line"
 n0="$(dem)"
