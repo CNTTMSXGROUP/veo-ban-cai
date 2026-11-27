@@ -1,0 +1,162 @@
+name: Kiểm bộ cài chính thức Vèo 0.3.24
+on:
+  push:
+    branches: [kiem-veo-0324-ban-chinh]
+permissions:
+  contents: write
+env:
+  TAG: veo-qa-0324-ban-chinh
+  # thay: cài đè lên bản đã phát hành (trước khi công khai). that: tự cập nhật từ đường công khai (sau khi công khai).
+  CHE_DO: thay
+jobs:
+  do-hoa-mac:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-26, ten: arm64, dmg: '61e19d1b9336ef70a27524714b51826a38e4a84bd6b8c2eddd1cfe67011446b0' }
+          - { runner: macos-15-intel, ten: x64-lan1, dmg: '5a93edf619937917ab58031daa13ff25ea2ae8c0c1470d5177be2a20b979ffd8' }
+          - { runner: macos-15-intel, ten: x64-lan2, dmg: '5a93edf619937917ab58031daa13ff25ea2ae8c0c1470d5177be2a20b979ffd8' }
+    timeout-minutes: 14
+    steps:
+      - name: Cài mới, tải bộ dựng, xuất chữ động và phát lại
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_QA_WORKER_SHA: 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333'
+          VEO_QA_DMG_SHA: ${{ matrix.dmg }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-do-hoa"
+          mkdir -p "$qa"
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts"
+          for tep in mac/bam-cua-so.swift mac/kiem-do-hoa-chinh.sh do-hoa/kiem-video-do-hoa.py; do
+            curl -fsSL --retry 2 --max-time 30 "$base/$tep" -o "$qa/${tep##*/}"
+          done
+          bash "$qa/kiem-do-hoa-chinh.sh" "$qa" "$VEO_QA_DMG_SHA"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: do-hoa-mac-${{ matrix.ten }}
+          path: ${{ runner.temp }}/veo-qa-do-hoa/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
+  do-hoa-windows:
+    runs-on: windows-latest
+    timeout-minutes: 14
+    steps:
+      - name: Cài mới và lấy gói đồ họa
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-do-hoa'
+          $Name = 'Veo_0.3.24_x64-setup.exe'
+          if ((gh release view $env:TAG -R $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft) -ne 'true') { throw 'Không thấy bản nháp kiểm thử.' }
+          gh release download $env:TAG -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash (Join-Path $Qa $Name)).Hash -ne '705752874b9295eaba6256f805cb7d9851db74ec3ba271150f759ca82af00506') { throw 'Sai bộ cài.' }
+          $Install = Join-Path $Qa 'app'
+          $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru
+          if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+          if ($Process.ExitCode -ne 0 -or (Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản đã cài.' }
+          if ((Get-FileHash (Join-Path $Install 'worker/dung-app.mjs')).Hash -ne 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333') { throw 'Sai mã phần dựng.' }
+          $Manifest = Get-Content (Join-Path $Install 'phan-do-hoa.json') -Raw -Encoding utf8 | ConvertFrom-Json
+          gh release download $env:TAG -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Manifest.items[0].tep
+          if ($LASTEXITCODE -ne 0) { throw 'Không tải được gói bộ dựng.' }
+      - name: Tải bộ dựng, xuất chữ động và phát lại
+        shell: pwsh
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-do-hoa'
+          $env:DUNG_CHEP_LOI = 'may'
+          $env:NO_PROXY = '127.0.0.1,localhost'
+          $Script = Join-Path $Qa 'kiem-do-hoa-r34.ps1'
+          $Base = "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts"
+          Invoke-WebRequest "$Base/windows/kiem-do-hoa-r34.ps1" -OutFile $Script
+          Invoke-WebRequest "$Base/do-hoa/kiem-video-do-hoa.py" -OutFile (Join-Path $Qa 'kiem-video-do-hoa.py')
+          & pwsh -NoProfile -STA -File $Script -Install (Join-Path $Qa 'app') -Qa $Qa
+          if ($LASTEXITCODE -ne 0) { throw 'Ca thử đồ họa trên Windows thất bại.' }
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: do-hoa-windows
+          path: ${{ runner.temp }}/veo-qa-do-hoa/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
+  nang-cap-mac:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-26, ten: arm64, goi: aarch64, cu: 363a4f2a00bc92c2b42670463771b9ad57ca9e0f342e90b2a821601c5d0c4699, moi: 'b4b5be0e7b458edf11cf8a05f0f6d83754c1d13e3f51f0347dbbc6c24447c2a5' }
+          - { runner: macos-15-intel, ten: x64, goi: x64, cu: 30e67062d56c547ebea94cdd1230b35c8fa68b29ff0d4ca78450846c6efc687f, moi: '3656ec644c8d27b0f27b6ec8869bcadb0fee215a3e185803f4502f0e2f10e9cc' }
+    timeout-minutes: 16
+    steps:
+      - name: Nâng từ bản 0.3.23 đã phát hành, giữ dự án cũ, thử quay lui
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_QA_WORKER_SHA: 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333'
+          GOI: ${{ matrix.goi }}
+          CU: ${{ matrix.cu }}
+          MOI: ${{ matrix.moi }}
+        run: |
+          set -euo pipefail
+          qa="$RUNNER_TEMP/veo-qa-mac-cap-nhat"
+          mkdir -p "$qa/cu" "$qa/moi"
+          cd "$qa"
+          ten_cu="Veo_0.3.23_${GOI}.app.tar.gz"; ten_moi="Veo_0.3.24_${GOI}.app.tar.gz"
+          gh release download v0.3.23 -R "$GITHUB_REPOSITORY" --dir cu --pattern "$ten_cu"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" --dir moi --pattern "$ten_moi"
+          gh release download veo-qa-windows-20261126-7bc6cdf -R "$GITHUB_REPOSITORY" --pattern qa-upgrade-voice.mp4
+          printf '%s\n' "$CU  cu/$ten_cu" "$MOI  moi/$ten_moi" '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
+          curl -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
+          printf '%s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  ggml-base.en-q5_1.bin' | shasum -a 256 -c
+          base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
+          curl -fsSL --retry 2 --max-time 30 "$base/bam-cua-so-nang-cap.swift" -o "$qa/bam-cua-so.swift"
+          curl -fsSL --retry 2 --max-time 30 "$base/kiem-nang-cap-chinh.sh" -o "$qa/kiem-nang-cap-chinh.sh"
+          bash "$qa/kiem-nang-cap-chinh.sh" "$qa" "$qa/cu/$ten_cu" "$qa/moi/$ten_moi" "$CHE_DO"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nang-cap-mac-${{ matrix.ten }}
+          path: ${{ runner.temp }}/veo-qa-mac-cap-nhat/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
+  nang-cap-windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ca: [mac-dinh, tu-chon]
+    timeout-minutes: 18
+    steps:
+      - name: Nâng từ bộ cài 0.3.23 đã phát hành, giữ dự án cũ
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VEO_QA_WORKER_SHA: 'f7a57b03a5fecc890c75e1db53e123b1c474f816ceb90219324ed38505002333'
+          VEO_CA: ${{ matrix.ca }}
+        run: |
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-signed'
+          New-Item -ItemType Directory -Path $Qa | Out-Null
+          gh release download v0.3.23 -R $env:GITHUB_REPOSITORY --dir $Qa --pattern Veo_0.3.23_x64-setup.exe
+          gh release download $env:TAG -R $env:GITHUB_REPOSITORY --dir $Qa --pattern Veo_0.3.24_x64-setup.exe
+          if ((Get-FileHash (Join-Path $Qa 'Veo_0.3.23_x64-setup.exe')).Hash -ne '60740d5c78b63dcf36391683b457ff9be595399aa7ab3c88d2377ef9a952008b') { throw 'Sai bộ cài 0.3.23.' }
+          if ((Get-FileHash (Join-Path $Qa 'Veo_0.3.24_x64-setup.exe')).Hash -ne '705752874b9295eaba6256f805cb7d9851db74ec3ba271150f759ca82af00506') { throw 'Sai bộ cài 0.3.24.' }
+          $Model = Join-Path $Qa 'ggml-base.en-q5_1.bin'
+          curl.exe -L --max-time 180 --retry 2 --fail --silent --show-error 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o $Model
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash $Model).Hash -ne '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f') { throw 'Sai model tiếng Anh.' }
+          foreach ($Name in 'kiem-kho-nang-cap.mjs','kiem-nang-cap-chinh.ps1','kiem-chuyen-kho.py','sau-khi-ghi.mjs') {
+            Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$Name" -OutFile (Join-Path $Qa $Name)
+          }
+          & pwsh -NoProfile -STA -File (Join-Path $Qa 'kiem-nang-cap-chinh.ps1') -Qa $Qa -Ca $env:VEO_CA -CheDo $env:CHE_DO
+          if ($LASTEXITCODE -ne 0) { throw 'Kiểm nâng cấp thất bại.' }
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nang-cap-windows-${{ matrix.ca }}
+          path: ${{ runner.temp }}/veo-qa-signed/minh-chung
+          if-no-files-found: warn
+          retention-days: 30
