@@ -3,7 +3,7 @@ set -euo pipefail
 
 qa="${1:?thư mục thử}"
 expected_dmg="${2:?mã SHA-256 của DMG}"
-[[ "${GITHUB_ACTIONS:-}" == true && "$(dirname "$qa")" == "$RUNNER_TEMP" && "$(stat -f %Su /dev/console)" == runner ]]
+[[ "${GITHUB_ACTIONS:-}" == true && "$(dirname "$qa")" == "$RUNNER_TEMP" && "$(stat -f %Su /dev/console)" == runner ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 scratch="$qa/lam"
 proof="$qa/minh-chung"
 mkdir -p "$scratch/gan" "$scratch/nhac" "$qa/goi" "$proof"
@@ -46,8 +46,8 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
-[[ ! -e "$data" ]]
-[[ "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
+[[ ! -e "$data" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa" --pattern "$dmg"
 printf '%s  %s\n' "$expected_dmg" "$qa/$dmg" | shasum -a 256 -c
 hdiutil attach "$qa/$dmg" -mountpoint "$scratch/gan" -readonly -nobrowse -noautoopen
@@ -58,14 +58,14 @@ mounted=''
 codesign --verify --deep --strict "$installed"
 resources="$installed/Contents/Resources"
 bin="$installed/Contents/MacOS/msx-phong-dung"
-[[ "$(lipo -archs "$bin")" == "$arch" ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist")" == 0.3.24 ]]
+[[ "$(lipo -archs "$bin")" == "$arch" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist")" == 0.3.24 ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 worker="$(shasum -a 256 "$resources/worker/dung-app.mjs" | awk '{print $1}')"
-[[ "$worker" == "${VEO_QA_WORKER_SHA:?}" ]]
+[[ "$worker" == "${VEO_QA_WORKER_SHA:?}" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 
 jq -er '.items[] | [.tep,.sha256] | @tsv' "$resources/phan-chay.json" > "$scratch/goi.tsv"
 while IFS=$'\t' read -r name digest; do
-  [[ "$name" =~ ^[a-z0-9-]+\.tar\.gz$ ]]
+  [[ "$name" =~ ^[a-z0-9-]+\.tar\.gz$ ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
   if [[ "$name" == ffmpeg-* ]]; then
     gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa/goi" --pattern "$name"
   else
@@ -73,7 +73,7 @@ while IFS=$'\t' read -r name digest; do
   fi
   printf '%s  %s\n' "$digest" "$qa/goi/$name" | shasum -a 256 -c
 done < "$scratch/goi.tsv"
-[[ "$(wc -l < "$scratch/goi.tsv" | tr -d ' ')" == 7 ]]
+[[ "$(wc -l < "$scratch/goi.tsv" | tr -d ' ')" == 7 ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 
 curl -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o "$scratch/ggml-base.en-q5_1.bin"
 printf '%s  %s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f' "$scratch/ggml-base.en-q5_1.bin" | shasum -a 256 -c
@@ -97,7 +97,7 @@ sudo killall -HUP mDNSResponder
 # WebKit có thể đọc proxy của máy. Giữ các lượt HTTPS trong máy thử khi dùng phiên tổng hợp.
 iface="$(route -n get default | awk '/interface:/ {print $2}')"
 service="$(networksetup -listnetworkserviceorder | awk -v iface="$iface" '/^\([0-9]+\)/ { service=$0; sub(/^\([0-9]+\) /,"",service) } index($0,"Device: " iface ")") { print service; exit }')"
-[[ -n "$service" ]]
+[[ -n "$service" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 networksetup -getsecurewebproxy "$service" | grep -Fx 'Enabled: No'
 nguon_mang="$service"
 sudo networksetup -setsecurewebproxy "$nguon_mang" 127.0.0.1 54326

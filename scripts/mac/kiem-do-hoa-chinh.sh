@@ -3,7 +3,7 @@ set -euo pipefail
 
 qa="${1:?thư mục thử}"
 expected_dmg="${2:?mã SHA-256 của DMG}"
-[[ "${GITHUB_ACTIONS:-}" == true && "$(dirname "$qa")" == "$RUNNER_TEMP" && "$(stat -f %Su /dev/console)" == runner ]]
+[[ "${GITHUB_ACTIONS:-}" == true && "$(dirname "$qa")" == "$RUNNER_TEMP" && "$(stat -f %Su /dev/console)" == runner ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 scratch="$qa/lam"
 proof="$qa/minh-chung"
 mkdir -p "$scratch/gan" "$scratch/nhac" "$qa/goi" "$proof"
@@ -46,8 +46,8 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
-[[ ! -e "$data" ]]
-[[ "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
+[[ ! -e "$data" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa" --pattern "$dmg"
 printf '%s  %s\n' "$expected_dmg" "$qa/$dmg" | shasum -a 256 -c
 hdiutil attach "$qa/$dmg" -mountpoint "$scratch/gan" -readonly -nobrowse -noautoopen
@@ -58,14 +58,14 @@ mounted=''
 codesign --verify --deep --strict "$installed"
 resources="$installed/Contents/Resources"
 bin="$installed/Contents/MacOS/msx-phong-dung"
-[[ "$(lipo -archs "$bin")" == "$arch" ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist")" == 0.3.24 ]]
+[[ "$(lipo -archs "$bin")" == "$arch" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist")" == 0.3.24 ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 worker="$(shasum -a 256 "$resources/worker/dung-app.mjs" | awk '{print $1}')"
-[[ "$worker" == "${VEO_QA_WORKER_SHA:?}" ]]
+[[ "$worker" == "${VEO_QA_WORKER_SHA:?}" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 
 jq -er '.items[] | [.tep,.sha256] | @tsv' "$resources/phan-chay.json" > "$scratch/goi.tsv"
 while IFS=$'\t' read -r name digest; do
-  [[ "$name" =~ ^[a-z0-9-]+\.tar\.gz$ ]]
+  [[ "$name" =~ ^[a-z0-9-]+\.tar\.gz$ ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
   if [[ "$name" == ffmpeg-* ]]; then
     gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa/goi" --pattern "$name"
   else
@@ -73,13 +73,13 @@ while IFS=$'\t' read -r name digest; do
   fi
   printf '%s  %s\n' "$digest" "$qa/goi/$name" | shasum -a 256 -c
 done < "$scratch/goi.tsv"
-[[ "$(wc -l < "$scratch/goi.tsv" | tr -d ' ')" == 7 ]]
+[[ "$(wc -l < "$scratch/goi.tsv" | tr -d ' ')" == 7 ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 manifest="$resources/phan-do-hoa.json"
 IFS=$'	' read -r renderer_file renderer_sha renderer_size < <(jq -er '.items[0] | [.tep,.sha256,.size] | @tsv' "$manifest")
-[[ "$renderer_file" =~ ^render-hyperframes-darwin-[a-z0-9-]+\.tar\.gz$ ]]
+[[ "$renderer_file" =~ ^render-hyperframes-darwin-[a-z0-9-]+\.tar\.gz$ ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 gh release download "$tag" -R "$GITHUB_REPOSITORY" --dir "$qa" --pattern "$renderer_file"
 printf '%s  %s\n' "$renderer_sha" "$qa/$renderer_file" | shasum -a 256 -c
-[[ "$(stat -f %z "$qa/$renderer_file")" == "$renderer_size" ]]
+[[ "$(stat -f %z "$qa/$renderer_file")" == "$renderer_size" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 python3 -m http.server 54325 --bind 127.0.0.1 --directory "$qa/goi" > "$scratch/server.log" 2>&1 &
 server_pid=$!
 for try in {1..25}; do
@@ -97,7 +97,7 @@ sudo killall -HUP mDNSResponder
 # WebKit có thể đọc proxy của máy. Giữ các lượt HTTPS trong máy thử khi dùng phiên tổng hợp.
 iface="$(route -n get default | awk '/interface:/ {print $2}')"
 service="$(networksetup -listnetworkserviceorder | awk -v iface="$iface" '/^\([0-9]+\)/ { service=$0; sub(/^\([0-9]+\) /,"",service) } index($0,"Device: " iface ")") { print service; exit }')"
-[[ -n "$service" ]]
+[[ -n "$service" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 networksetup -getsecurewebproxy "$service" | grep -Fx 'Enabled: No'
 nguon_mang="$service"
 sudo networksetup -setsecurewebproxy "$nguon_mang" 127.0.0.1 54326
@@ -136,7 +136,7 @@ sleep 2
 ui click 'Dùng ngay' 1 2>/dev/null || true
 ui wait 'Tạo mới' 10
 ui fit 'cửa sổ thường'
-[[ ! -e "$data/goi-do-hoa/$renderer_sha/render-hyperframes" ]]
+[[ ! -e "$data/goi-do-hoa/$renderer_sha/render-hyperframes" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 click 'Tạo mới'
 click 'Từ ý tưởng / Storyboard'
 printf '%s' 'Cảnh thử đồ họa' | /usr/bin/pbcopy
@@ -159,7 +159,7 @@ click 'Tải bộ dựng*'
 ui wait 'Máy chủ chưa cung cấp được gói tải này. Hãy thử lại sau.' 10
 ui wait 'Thử tải lại*' 40
 printf '%s\n' "$(( $(now_ms) - download_started ))" > "$proof/thoi-gian-bao-loi-ms.txt"
-[[ ! -e "$data/goi-do-hoa/$renderer_sha/render-hyperframes" ]]
+[[ ! -e "$data/goi-do-hoa/$renderer_sha/render-hyperframes" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 capture '02-thu-tai-lai'
 cp "$qa/$renderer_file" "$qa/goi/$renderer_file"
 click 'Thử tải lại*'
@@ -167,7 +167,7 @@ for try in {1..45}; do
   if [[ -f "$data/goi-do-hoa/$renderer_sha/render-hyperframes/render.mjs" ]]; then break; fi
   sleep 1
 done
-[[ -f "$data/goi-do-hoa/$renderer_sha/render-hyperframes/render.mjs" ]]
+[[ -f "$data/goi-do-hoa/$renderer_sha/render-hyperframes/render.mjs" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 click 'Chữ động'
 wait_preview() {
   local end=$((SECONDS + 140))
@@ -240,7 +240,7 @@ click '720p'
 click 'Xuất 1 tệp'
 ui wait 'Thành phẩm' 140
 output="$(find "$data/du-an" -path '*/xuat/*.mp4' -type f -print)"
-[[ -f "$output" && -s "$output" ]]
+[[ -f "$output" && -s "$output" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 cp "$output" "$proof/Chuyen-dong-chu.mp4"
 hash="$(shasum -a 256 "$output" | awk '{print $1}')"
 ui key-app 12 cmd
@@ -253,6 +253,6 @@ ui wait 'Thành phẩm' 90
 click 'Phát'
 ui wait 'Dừng' 8
 capture '05-phat-sau-khi-mo-lai'
-[[ "$(shasum -a 256 "$output" | awk '{print $1}')" == "$hash" ]]
+[[ "$(shasum -a 256 "$output" | awk '{print $1}')" == "$hash" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 cp "$scratch/server.log" "$proof/may-chu-tai.log"
 python3 "$qa/kiem-video-do-hoa.py" "$data" "$runtime" "$manifest" "$proof" "$proof/may-chu-tai.log" | tee "$proof/ket-qua.json"
