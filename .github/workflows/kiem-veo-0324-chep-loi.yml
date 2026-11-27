@@ -1,0 +1,71 @@
+name: Dò chép lời trên Windows theo tên thư mục kho
+on:
+  push:
+    branches: [kiem-veo-0324-chep-loi]
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - name: Cùng video, đổi bản cài và tên thư mục kho
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Qa = Join-Path $env:RUNNER_TEMP 'veo-qa-chep-loi'
+          $Proof = Join-Path $Qa 'minh-chung'
+          New-Item -ItemType Directory -Path $Proof | Out-Null
+          $Model = Join-Path $Qa 'ggml-base.en-q5_1.bin'
+          curl.exe -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o $Model
+          if ((Get-FileHash $Model).Hash -ne '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f') { throw 'Sai mô hình.' }
+          gh release download veo-qa-windows-20261126-7bc6cdf -R $env:GITHUB_REPOSITORY --dir $Qa --pattern qa-upgrade-voice.mp4
+          if ((Get-FileHash (Join-Path $Qa 'qa-upgrade-voice.mp4')).Hash -ne '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71') { throw 'Sai tiếng nguồn.' }
+          $Script = Join-Path $Qa 'tao-sua-tay.mjs'
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/do-hoa/tao-sua-tay.mjs" -OutFile $Script
+          $env:VEO_QA_CLIP = Join-Path $Qa 'qa-upgrade-voice.mp4'
+          $env:VEO_QA_MODEL = $Model
+          $env:VEO_QA_CHI_DUNG = '1'
+          $Ban = @(
+            @{ So = '0.3.23'; Tag = 'v0.3.23'; Hash = '60740d5c78b63dcf36391683b457ff9be595399aa7ab3c88d2377ef9a952008b' },
+            @{ So = '0.3.24'; Tag = 'veo-qa-0324-ban-chinh-2'; Hash = '1df366af3aa84f7847f45ed37fadb18dba4560442815363a591cf387c0b4d49a' }
+          )
+          $Thu = @('khong-dau', 'Kho thu', 'Khothử', 'Kho thử')
+          $i = 0
+          foreach ($B in $Ban) {
+            $Name = "Veo_$($B.So)_x64-setup.exe"
+            gh release download $B.Tag -R $env:GITHUB_REPOSITORY --dir $Qa --pattern $Name
+            if ((Get-FileHash (Join-Path $Qa $Name)).Hash -ne $B.Hash) { throw "Sai bộ cài $($B.So)." }
+            $Install = Join-Path $Qa "app-$($B.So)"
+            $Process = Start-Process (Join-Path $Qa $Name) -ArgumentList @('/S',"/D=$Install") -PassThru
+            if (!$Process.WaitForExit(240000)) { $Process.Kill($true); throw 'Cài Vèo quá thời gian.' }
+            if ((Get-Item (Join-Path $Install 'msx-phong-dung.exe')).VersionInfo.FileVersion -notmatch ('^' + [regex]::Escape($B.So))) { throw 'Sai phiên bản đã cài.' }
+            foreach ($Ten in $Thu) {
+              $i++
+              $Work = Join-Path $Qa "ca-$i"
+              New-Item -ItemType Directory -Path $Work | Out-Null
+              $env:VEO_QA_DATA = Join-Path $Work $Ten
+              $Log = & (Join-Path $Install 'node.exe') $Script $Install (Join-Path $Install 'worker') $Work 2>&1 | Out-String
+              $Dong = "$($B.So) | $Ten | mã $LASTEXITCODE"
+              $Dong | Tee-Object -FilePath (Join-Path $Proof 'ket-qua.txt') -Append
+              $Log | Set-Content (Join-Path $Proof "ca-$i.log") -Encoding utf8
+            }
+            # Gọi thẳng bộ chép lời với tệp tiếng nằm trong thư mục có dấu để đọc được dòng báo lỗi đầu tiên.
+            $Dau = Join-Path $Qa "goi-thang-$($B.So)-thử"
+            New-Item -ItemType Directory -Path $Dau | Out-Null
+            $Wav = Join-Path $Dau 'tieng.wav'
+            & (Join-Path $Install 'ffmpeg.exe') -v error -i $env:VEO_QA_CLIP -ar 16000 -ac 1 -c:a pcm_s16le -y $Wav
+            $Ra = & (Join-Path $Install 'whisper-cli.exe') -m $Model -f $Wav 2>&1 | Out-String
+            "$($B.So) | gọi thẳng | mã $LASTEXITCODE" | Tee-Object -FilePath (Join-Path $Proof 'ket-qua.txt') -Append
+            ($Ra -split "`n" | Select-Object -First 8) -join "`n" | Tee-Object -FilePath (Join-Path $Proof 'ket-qua.txt') -Append
+          }
+          $global:LASTEXITCODE = 0
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chep-loi-windows
+          path: ${{ runner.temp }}/veo-qa-chep-loi/minh-chung
+          if-no-files-found: warn
+          retention-days: 30

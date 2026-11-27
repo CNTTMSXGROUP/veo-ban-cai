@@ -38,7 +38,7 @@ const child = spawn(join(bin, 'node' + exe), [join(worker, 'dung-app.mjs')], {
 });
 const exited = once(child, 'exit');
 const output = createInterface({ input: child.stdout });
-try {
+kiem: try {
     const boot = await Promise.race([
         once(output, 'line').then(([line]) => JSON.parse(line)),
         exited.then(([code]) => { throw new Error('Phần dựng thoát trước khi mở: ' + code); }),
@@ -65,6 +65,7 @@ try {
     }
     const { id } = await call('projects', { name: '[TEST] Sửa tay', clips: [clip], ngonNgu: 'en', useAi: false, autoExport: false });
     let v = await waitFor(id, 'dung');
+    if (process.env.VEO_QA_CHI_DUNG) { console.log('ĐẠT: chép lời và dựng được.'); break kiem; }
     const act = async (name, args) => { v = await call('projects/' + id + '/act', { name, args, stamp: v.stamp }); };
     const sourceId = v.plan.sources[0].id;
     const sticker = (await call('projects/' + id + '/nhan-dan', { id: 'mui-ten' })).id;
