@@ -69,9 +69,9 @@ try {
     const sourceId = v.plan.sources[0].id;
     const sticker = (await call('projects/' + id + '/nhan-dan', { id: 'mui-ten' })).id;
     v = await call('projects/' + id);
-    await act('placeAsset', [sticker, '', '', { at: { sourceId, startSec: 0, endSec: duration * 0.35 }, box: { x: 240, y: 760, w: 420, h: 300 } }]);
+    await act('placeAsset', [sticker, '', '', { at: { sourceId, startSec: 0, endSec: 2.6 }, box: { x: 240, y: 760, w: 420, h: 300 } }]);
     const mask = { mode: 'blur', shape: 'rect', strength: 70, soft: 45, color: '#101014' };
-    await act('placeMask', [mask, { sourceId, startSec: duration * 0.65, endSec: duration }, { box: { x: 600, y: 300, w: 400, h: 400 } }]);
+    await act('placeMask', [mask, { sourceId, startSec: 3.4, endSec: 5 }, { box: { x: 600, y: 300, w: 400, h: 400 } }]);
 
     await call('projects/' + id + '/export', { video: true, captions: true, check: false, res: 720, name: '[TEST] Sửa tay' });
     const done = await waitFor(id, 'xuat'), mp4 = done.project.job.files.find((p) => p.endsWith('.mp4'));
