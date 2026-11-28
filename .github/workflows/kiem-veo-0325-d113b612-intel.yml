@@ -1,7 +1,7 @@
 name: Kiểm Vèo 0.3.25 trên Mac Intel
 on:
   push:
-    branches: [kiem-veo-0325-d113b612]
+    branches: [kiem-cap-nhat-cong-khai-0325]
     paths: [.github/workflows/kiem-veo-0325-d113b612-intel.yml]
 permissions:
   contents: write
@@ -10,7 +10,7 @@ jobs:
     runs-on: macos-15-intel
     timeout-minutes: 22
     steps:
-      - name: Cài đè, mở Vèo, xuất và phát lại từ kho cũ
+      - name: Bấm cập nhật công khai, mở Vèo, xuất và phát lại từ kho cũ
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,11 +31,11 @@ jobs:
           curl -fsSL --retry 2 --max-time 30 "$base/bam-cua-so-nang-cap-intel.swift" -o "$qa/bam-cua-so.swift"
           curl -fsSL --retry 2 --max-time 30 "$base/kiem-nang-cap-chinh-intel.sh" -o "$qa/kiem-nang-cap-chinh.sh"
           curl -fsSL --retry 2 --max-time 30 "$base/tao-kho-0323.mjs" -o "$qa/tao-kho-0323.mjs"
-          bash "$qa/kiem-nang-cap-chinh.sh" "$qa" "$qa/cu/$ten_cu" "$qa/moi/$ten_moi" thay
+          bash "$qa/kiem-nang-cap-chinh.sh" "$qa" "$qa/cu/$ten_cu" "$qa/moi/$ten_moi" that
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-0325-mac-intel-d113b612
+          name: veo-0325-mac-intel-updater
           path: ${{ runner.temp }}/veo-qa-mac-cap-nhat/minh-chung
           if-no-files-found: warn
           retention-days: 30

@@ -1,7 +1,7 @@
 name: Kiểm cài và phát MP4 bằng Vèo Windows 0.3.25
 on:
   push:
-    branches: [kiem-veo-0325-d113b612]
+    branches: [kiem-cap-nhat-cong-khai-0325]
     paths: [.github/workflows/kiem-veo-0325-d113b612-windows.yml]
 permissions:
   contents: write
@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 22
     steps:
-      - name: Cài đè lên 0.3.24, mở Vèo, xuất và phát từ bộ cài 0.3.25
+      - name: Bấm cập nhật công khai từ 0.3.24, mở Vèo, xuất và phát MP4
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -32,12 +32,12 @@ jobs:
           foreach ($Name in 'kiem-kho-nang-cap.mjs','kiem-nang-cap-chinh.ps1','kiem-chuyen-kho.py','sau-khi-ghi.mjs') {
             Invoke-WebRequest "https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/$env:GITHUB_SHA/scripts/windows/$Name" -OutFile (Join-Path $Qa $Name)
           }
-          & pwsh -NoProfile -STA -File (Join-Path $Qa 'kiem-nang-cap-chinh.ps1') -Qa $Qa -Ca mac-dinh -CheDo thay
+          & pwsh -NoProfile -STA -File (Join-Path $Qa 'kiem-nang-cap-chinh.ps1') -Qa $Qa -Ca mac-dinh -CheDo that
           if ($LASTEXITCODE -ne 0) { throw 'Kiểm cài, xuất và phát MP4 thất bại.' }
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-0325-windows-d113b612
+          name: veo-0325-windows-updater
           path: ${{ runner.temp }}/veo-qa-0325-win/minh-chung
           if-no-files-found: warn
           retention-days: 30
