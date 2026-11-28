@@ -2,7 +2,7 @@ name: Kiểm Vèo 0.3.25 trên Apple Silicon
 on:
   push:
     branches: [kiem-cap-nhat-arm64-0325]
-    paths: [.github/workflows/kiem-veo-0325-d113b612-intel.yml, scripts/mac/tao-kho-0323.mjs]
+    paths: [.github/workflows/kiem-veo-0325-d113b612-intel.yml, scripts/mac/tao-kho-0323.mjs, scripts/mac/kiem-nang-cap-chinh-intel.sh]
 permissions:
   contents: write
 jobs:
