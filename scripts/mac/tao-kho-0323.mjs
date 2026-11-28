@@ -8,7 +8,7 @@ import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const [installPath, workPath] = process.argv.slice(2);
-assert(process.platform === 'darwin' && process.arch === 'x64' && process.env.GITHUB_ACTIONS === 'true', 'Chỉ dùng kho thử trên máy ảo Mac Intel.');
+assert(process.platform === 'darwin' && ['x64', 'arm64'].includes(process.arch) && process.env.GITHUB_ACTIONS === 'true', 'Chỉ dùng kho thử trên máy ảo Mac của GitHub Actions.');
 assert(installPath && workPath && process.env.VEO_QA_DATA && process.env.VEO_QA_CLIP, 'Thiếu thư mục hoặc giai đoạn kiểm.');
 const install = resolve(installPath), work = resolve(workPath);
 const data = process.env.VEO_QA_DATA;
