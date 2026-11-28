@@ -15,7 +15,7 @@ const data = process.env.VEO_QA_DATA;
 assert(data === join(process.env.HOME, 'Library/Application Support/vn.msxgroup.phongdung'));
 const worker = install;
 const ffmpeg = join(install, 'ffmpeg'), ffprobe = join(install, 'ffprobe');
-const proofPath = join(work, 'kho-0.3.23.json');
+const proofPath = join(work, 'kho-0.3.24.json');
 const caption = 'Ba THẺ Màu · giữ kho cũ';
 const mask = { mode: 'solid', shape: 'rect', strength: 100, color: '#172937' };
 
@@ -94,12 +94,12 @@ try {
     assert.equal(old.revs.length, 6);
     assert(old.text.includes(caption) && old.inserts.some((c) => c.mask?.color === mask.color) && old.inserts.some((c) => c.asset === sticker));
     assert.equal(old.cover.imageEdit.zoom, 130);
-    const video = await render(id, 'Xuất từ Vèo 0.3.23');
+    const video = await render(id, 'Xuất từ Vèo 0.3.24');
     await call('projects/' + id + '/xep', { luuTru: 1 });
     const paths = new Set([input, old.cover.imagePath, video.path, ...old.source.map((s) => s.path), ...old.inserts.map((c) => c.path).filter(Boolean)]);
     const hashes = await Promise.all([...paths].map(async (path) => ({ path, sha: await sha(path) })));
     await writeFile(proofPath, JSON.stringify({ id, old, video, hashes }));
-    console.log('Vèo 0.3.23 đã chép lời, lưu 6 phiên bản sửa và xuất MP4.');
+    console.log('Vèo 0.3.24 đã chép lời, lưu 6 phiên bản sửa và xuất MP4.');
 } finally {
     output.close();
     child.stdin.end();

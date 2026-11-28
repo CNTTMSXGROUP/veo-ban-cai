@@ -6,7 +6,7 @@ qa="${1:?thư mục thử}"
 proof="$qa/minh-chung"
 scratch="$qa/lam"
 data="$HOME/Library/Application Support/vn.msxgroup.phongdung"
-cache="$HOME/Library/Caches/vn.msxgroup.phongdung/cap-nhat/ban-0.3.24.bin"
+cache="$HOME/Library/Caches/vn.msxgroup.phongdung/cap-nhat/ban-0.3.25.bin"
 arch="$(uname -m)"
 runtime_arch="$arch"
 if [[ "$arch" == arm64 ]]; then runtime_arch=aarch64; fi
@@ -14,13 +14,13 @@ runtime="$data/phan-chay-$runtime_arch"
 installed="$scratch/Vèo.app"
 bin="$installed/Contents/MacOS/msx-phong-dung"
 db="$data/phong-dung.db"
-old="${2:?gói 0.3.23}"
-new="${3:?gói 0.3.24}"
+old="${2:?gói 0.3.24}"
+new="${3:?gói 0.3.25}"
 mode="${4:?thay hoặc that}"
 [[ "$mode" == thay || "$mode" == that ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 app_pid='' server_pid='' proxy='' hosts_changed=''
 fixture="$HOME/Documents/Veo kho Mac thu.mp4"
-mkdir -p "$proof" "$scratch/nhac" "$scratch/ban-sao" "$scratch/kho-r27" "$qa/goi/runtime"
+mkdir -p "$proof" "$scratch/nhac" "$scratch/ban-sao" "$scratch/kho-0325" "$qa/goi/runtime"
 ui() { "$scratch/bam-cua-so" "$app_pid" "$@"; }
 click() { ui click "$@"; sleep .25; }
 capture() { ui capture "$proof/$1.png"; }
@@ -44,7 +44,11 @@ cleanup() {
     /usr/bin/log show --last 4m --style compact --predicate '(process CONTAINS "WebKit" OR process == "msx-phong-dung") AND (eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "terminate")' | tail -90 > "$proof/webkit.log" || true
   fi
   if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
-  if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; fi
+  if [[ -n "$server_pid" ]]; then
+    kill "$server_pid" 2>/dev/null || true
+    wait "$server_pid" 2>/dev/null || true
+    if lsof -nP -iTCP:59343 -sTCP:LISTEN; then result=1; fi
+  fi
   if [[ -n "$proxy" ]]; then sudo networksetup -setsecurewebproxystate "$proxy" off || true; fi
   if [[ -n "$hosts_changed" ]]; then sudo cp "$scratch/hosts" /etc/hosts; fi
   if [[ -f "$scratch/server.log" ]]; then cp "$scratch/server.log" "$proof/may-chu-thu.log"; fi
@@ -57,7 +61,7 @@ codesign --verify --deep --strict "$installed"
 [[ "$(lipo -archs "$bin")" == "$arch" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 version() { /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed/Contents/Info.plist"; }
 hash() { shasum -a 256 "$1" | awk '{print $1}'; }
-[[ "$(version)" == '0.3.23' ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(version)" == '0.3.24' ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 old_binary="$(hash "$bin")"
 cp "$installed/Contents/Resources/phan-chay.json" "$scratch/goi-cu.json"
 tar -xOf "$new" 'Vèo.app/Contents/Resources/phan-chay.json' > "$scratch/goi-moi.json"
@@ -71,6 +75,7 @@ while IFS=$'\t' read -r name digest; do
 done < "$scratch/goi.tsv"
 python3 -u -m http.server 59343 --bind 127.0.0.1 --directory "$qa/goi" > "$scratch/server.log" 2>&1 &
 server_pid=$!
+printf "VEO_QA_SERVER_PID=%s PORT=59343\n" "$server_pid"
 for try in {1..25}; do
   if curl -fs 'http://127.0.0.1:59343/' > /dev/null; then break; fi
   kill -0 "$server_pid"
@@ -101,6 +106,7 @@ export HTTPS_PROXY='http://127.0.0.1:59344' NO_PROXY='127.0.0.1,localhost'
 start_app() {
   PATH=/usr/bin:/bin:/usr/sbin:/sbin "$bin" > "$scratch/veo-$1.log" 2>&1 &
   app_pid=$!
+  printf "VEO_QA_APP_PID=%s\n" "$app_pid"
   sleep 2
   kill -0 "$app_pid"
 }
@@ -141,7 +147,7 @@ old_out="$(find "$data/du-an" -path '*/xuat/*.mp4' -type f)"
 [[ -f "$old_out" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 old_hash="$(hash "$old_out")"
 src_hash="$(hash "$fixture")"
-cp "$old_out" "$proof/tu-0.3.23.mp4"
+cp "$old_out" "$proof/tu-0.3.24.mp4"
 snapshot > "$proof/lich-su-truoc.txt"
 so_ban="$(sqlite3 -readonly "$db" 'SELECT count(*) FROM versions;')"
 [[ "$so_ban" -ge 2 ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
@@ -156,7 +162,7 @@ if [[ "$mode" == thay ]]; then
   rm -rf "$installed"
   tar -xzf "$new" -C "$scratch"
 else
-  # Sau khi phát hành: bản 0.3.23 tự lấy bản mới từ đường công khai.
+  # Sau khi phát hành: bản 0.3.24 tự lấy bản mới từ đường công khai.
   # Chỉ GitHub đi thẳng; máy chủ tài khoản vẫn đâm vào cổng chết nên phiên thử giữ ngoại tuyến.
   sudo networksetup -setproxybypassdomains "$proxy" github.com '*.github.com' '*.githubusercontent.com'
   export NO_PROXY='127.0.0.1,localhost,github.com,githubusercontent.com'
@@ -166,28 +172,28 @@ else
   for try in {1..60}; do
     if ui wait 'Cập nhật ngay' 1 2>/dev/null; then ui enter-app 'Để sau' 3 || true; fi
     if ui wait 'Dùng ngay' .5 2>/dev/null; then ui enter-app 'Dùng ngay' 2 || true; fi
-    if ui wait 'Cập nhật bản 0.3.24' 4 2>/dev/null; then break; fi
+    if ui wait 'Cập nhật bản 0.3.25' 4 2>/dev/null; then break; fi
   done
-  ready 'Cập nhật bản 0.3.24'
+  ready 'Cập nhật bản 0.3.25'
   capture '03-goi-da-duoc-xac-minh'
   old_pid="$app_pid"
-  click 'Cập nhật bản 0.3.24'
+  click 'Cập nhật bản 0.3.25'
   ui wait 'Cập nhật ngay' 15
   capture '03b-hop-co-gi-moi'
   click 'Cập nhật ngay'
   moc=$SECONDS
   while (( SECONDS - moc < 120 )); do
-    if [[ "$(version 2>/dev/null || true)" == '0.3.24' ]] && ! ps -p "$old_pid" >/dev/null 2>&1; then break; fi
+    if [[ "$(version 2>/dev/null || true)" == '0.3.25' ]] && ! ps -p "$old_pid" >/dev/null 2>&1; then break; fi
     sleep .5
   done
   if ps -p "$old_pid" >/dev/null 2>&1; then
-    echo "Sau $((SECONDS - moc)) giây bản 0.3.23 chưa thoát" >&2
-    tu_mo_lai='KHONG: 0.3.23 chưa thoát'; chup_may chua-thoat; kill "$old_pid" || true
+    echo "Sau $((SECONDS - moc)) giây bản 0.3.24 chưa thoát" >&2
+    tu_mo_lai='KHONG: 0.3.24 chưa thoát'; chup_may chua-thoat; kill "$old_pid" || true
   else
-    echo "Bản 0.3.23 thoát sau $((SECONDS - moc)) giây" >&2
+    echo "Bản 0.3.24 thoát sau $((SECONDS - moc)) giây" >&2
   fi
 fi
-[[ "$(version)" == '0.3.24' ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(version)" == '0.3.25' ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 codesign --verify --deep --strict "$installed"
 worker="$(hash "$installed/Contents/Resources/worker/dung-app.mjs")"
 [[ "$worker" == "${VEO_QA_WORKER_SHA:?}" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
@@ -201,11 +207,11 @@ else
     sleep .5
   done
   if [[ -n "$app_pid" ]]; then
-    echo "Bản 0.3.24 tự mở lại sau $((SECONDS - moc)) giây" >&2
+    echo "Bản 0.3.25 tự mở lại sau $((SECONDS - moc)) giây" >&2
     [[ "$tu_mo_lai" == KHONG* ]] || tu_mo_lai="tự mở sau $((SECONDS - moc)) giây"
   else
     # Ghi lại rồi tự mở để vẫn kiểm được dữ liệu và bản mới; bài đỏ ở cuối.
-    echo "Bản 0.3.24 chưa tự mở lại sau 120 giây" >&2
+    echo "Bản 0.3.25 chưa tự mở lại sau 120 giây" >&2
     [[ "$tu_mo_lai" == KHONG* ]] || tu_mo_lai='KHONG: chưa tự mở lại'
     chup_may khong-tu-mo-lai
     start_app moi
@@ -213,7 +219,7 @@ else
 fi
 ready 'Lưu trữ · 1'
 ui enter-app 'Lưu trữ · 1'
-play '04-phat-ban-cu-trong-r27'
+play '04-phat-ban-cu-trong-0325'
 [[ "$(hash "$old_out")" == "$old_hash" && "$(hash "$fixture")" == "$src_hash" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 snapshot > "$proof/lich-su-sau.txt"
 cmp "$proof/lich-su-truoc.txt" "$proof/lich-su-sau.txt"
@@ -221,7 +227,7 @@ click 'Xuất lại'
 click '720p'
 ui click-app 'Tên tệp'
 ui key-app 0 cmd
-printf '%s' 'Xuat lai r27' | pbcopy
+printf '%s' 'Xuat lai 0325' | pbcopy
 ui paste-app 'Tên tệp'
 ui key-app 48
 click 'Xuất 1 tệp'
@@ -231,28 +237,28 @@ ui wait 'Thành phẩm' 120
 new_out="$(find "$data/du-an" -path '*/xuat/*.mp4' -type f ! -path "$old_out")"
 [[ -f "$new_out" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 new_hash="$(hash "$new_out")"
-cp "$new_out" "$proof/tu-r27.mp4"
-for t in '0.3.23' r27; do
+cp "$new_out" "$proof/tu-0325.mp4"
+for t in '0.3.24' 0325; do
   "$runtime/ffprobe" -v error -show_entries stream=codec_name,width,height,avg_frame_rate,nb_frames -of json "$proof/tu-$t.mp4" > "$proof/video-$t.json"
   jq -e '.streams | any(.codec_name=="h264" and .width==720 and .height==1280 and .avg_frame_rate=="30/1" and (.nb_frames|tonumber)>0)' "$proof/video-$t.json" >/dev/null
   jq -e '.streams | any(.codec_name=="aac")' "$proof/video-$t.json" >/dev/null
 done
-cmp "$proof/video-0.3.23.json" "$proof/video-r27.json"
+cmp "$proof/video-0.3.24.json" "$proof/video-0325.json"
 quit_app
-start_app mo-lai-r27
+start_app mo-lai-0325
 ready 'Thành phẩm'
-play '05-phat-mp4-r27-sau-khi-mo-lai'
+play '05-phat-mp4-0325-sau-khi-mo-lai'
 [[ "$(hash "$new_out")" == "$new_hash" && "$(hash "$old_out")" == "$old_hash" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 quit_app
 
 # Giữ bản đã nâng ở chỗ riêng, rồi phục hồi đúng đường dẫn kho thử mà bản cũ đã lưu.
-mv "$installed" "$scratch/ban-r27.app"
-mv "$data/du-an" "$db" "$scratch/kho-r27/"
-for ext in shm wal; do if [[ -f "$db-$ext" ]]; then mv "$db-$ext" "$scratch/kho-r27/"; fi; done
+mv "$installed" "$scratch/ban-0325.app"
+mv "$data/du-an" "$db" "$scratch/kho-0325/"
+for ext in shm wal; do if [[ -f "$db-$ext" ]]; then mv "$db-$ext" "$scratch/kho-0325/"; fi; done
 ditto "$scratch/ban-sao/du-an" "$data/du-an"
 cp "$scratch/ban-sao/phong-dung.db" "$db"
 tar -xzf "$old" -C "$scratch"
-[[ "$(version)" == '0.3.23' && "$(hash "$bin")" == "$old_binary" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(version)" == '0.3.24' && "$(hash "$bin")" == "$old_binary" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 if [[ "$mode" == that ]]; then
   sudo networksetup -setsecurewebproxystate "$proxy" on
   export HTTPS_PROXY='http://127.0.0.1:59344' VEO_PHAN_CHAY_GOC='http://127.0.0.1:59343/runtime' NO_PROXY='127.0.0.1,localhost'
@@ -261,7 +267,7 @@ fi
 start_app quay-lui
 ready 'Lưu trữ · 1'
 capture '06-quay-lui-mo-duoc-kho-cu'
-[[ "$(hash "$old_out")" == "$old_hash" && "$(hash "$scratch/kho-r27/${new_out#"$data/"}")" == "$new_hash" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
+[[ "$(hash "$old_out")" == "$old_hash" && "$(hash "$scratch/kho-0325/${new_out#"$data/"}")" == "$new_hash" ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
 snapshot > "$proof/lich-su-quay-lui.txt"
 cmp "$proof/lich-su-truoc.txt" "$proof/lich-su-quay-lui.txt"
 [[ "$(sqlite3 -readonly "$db" 'PRAGMA integrity_check;')" == ok ]] || { echo "Sai khẳng định ở dòng $LINENO" >&2; exit 1; }
@@ -276,6 +282,6 @@ fi
 quit_app
 jq -n --arg tuMoLai "$tu_mo_lai" --arg os "$(sw_vers -productVersion)" --arg chip "$arch" --arg mode "$mode" --arg worker "$worker" \
   --arg package "$(hash "$new")" --arg old "$old_hash" --arg new "$new_hash" --argjson versions "$so_ban" --argjson oldPlay "$old_play" \
-  '{tuMoLai:$tuMoLai,macOS:$os,chip:$chip,cachCapNhat:$mode,tu:"0.3.23",den:"0.3.24",workerSha256:$worker,goiSha256:$package,shaVideoCu:$old,shaVideoMoi:$new,soBanSua:$versions,baoToanKho:true,moLaiPhat:true,quayLuiBangBanSao:true,phatLaiBangBanCu:$oldPlay}' |
+  '{tuMoLai:$tuMoLai,macOS:$os,chip:$chip,cachCapNhat:$mode,tu:"0.3.24",den:"0.3.25",workerSha256:$worker,goiSha256:$package,shaVideoCu:$old,shaVideoMoi:$new,soBanSua:$versions,baoToanKho:true,moLaiPhat:true,quayLuiBangBanSao:true,phatLaiBangBanCu:$oldPlay}' |
   tee "$proof/ket-qua.json"
 [[ "$tu_mo_lai" != KHONG* ]] || { echo "Nâng cấp đạt nhưng không tự mở lại: $tu_mo_lai" >&2; exit 1; }
