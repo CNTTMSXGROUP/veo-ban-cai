@@ -43,7 +43,14 @@ cleanup() {
     capture 'loi' || true
     /usr/bin/log show --last 4m --style compact --predicate '(process CONTAINS "WebKit" OR process == "msx-phong-dung") AND (eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "terminate")' | tail -90 > "$proof/webkit.log" || true
   fi
-  if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
+  if declare -F app_pids >/dev/null; then
+    for pid in $(app_pids); do kill "$pid" 2>/dev/null || true; done
+    for try in {1..25}; do
+      if [[ -z "$(app_pids)" ]]; then break; fi
+      sleep .2
+    done
+    if [[ -n "$(app_pids)" ]]; then result=1; fi
+  fi
   if [[ -n "$server_pid" ]]; then
     kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
@@ -111,7 +118,11 @@ start_app() {
   kill -0 "$app_pid"
 }
 app_pids() {
-  ps -axo pid=,command= | awk -v cmd="$bin" '{pid=$1; sub(/^[ ]*[0-9]+[ ]+/,""); if ($0==cmd || index($0,cmd " ")==1) print pid}'
+  local bin_phan_ra
+  bin_phan_ra="$(printf '%s' "$bin" | /usr/bin/iconv -f UTF-8 -t UTF-8-MAC)"
+  ps -axo pid=,comm= | awk -v cmd="$bin" -v cmd_mac="$bin_phan_ra" '
+    { pid=$1; sub(/^[ ]*[0-9]+[ ]+/, ""); if ($0==cmd || $0==cmd_mac) print pid }
+  '
 }
 quit_app() {
   ui key-app 12 cmd
@@ -207,6 +218,7 @@ else
     sleep .5
   done
   if [[ -n "$app_pid" ]]; then
+    printf "VEO_QA_APP_PID=%s\n" "$app_pid"
     echo "Bản 0.3.25 tự mở lại sau $((SECONDS - moc)) giây" >&2
     [[ "$tu_mo_lai" == KHONG* ]] || tu_mo_lai="tự mở sau $((SECONDS - moc)) giây"
   else
