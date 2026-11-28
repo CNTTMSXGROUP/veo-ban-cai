@@ -14,7 +14,7 @@ const install = resolve(installPath), work = resolve(workPath);
 const data = join(process.env.APPDATA, 'vn.msxgroup.phongdung');
 const worker = join(install, 'worker');
 const ffmpeg = join(install, 'ffmpeg.exe'), ffprobe = join(install, 'ffprobe.exe');
-const proofPath = join(work, 'kho-0.3.24.json');
+const proofPath = join(work, 'kho-0.3.25.json');
 const caption = 'Ba THẺ Màu · giữ kho cũ';
 const mask = { mode: 'solid', shape: 'rect', strength: 100, color: '#172937' };
 
@@ -94,11 +94,11 @@ try {
         assert.equal(old.revs.length, 6);
         assert(old.text.includes(caption) && old.inserts.some((c) => c.mask?.color === mask.color) && old.inserts.some((c) => c.asset === sticker));
         assert.equal(old.cover.imageEdit.zoom, 130);
-        const video = await render(id, 'Xuất từ Vèo 0.3.24');
+        const video = await render(id, 'Xuất từ Vèo 0.3.25');
         const paths = new Set([input, old.cover.imagePath, video.path, ...old.source.map((s) => s.path), ...old.inserts.map((c) => c.path).filter(Boolean)]);
         const hashes = await Promise.all([...paths].map(async (path) => ({ path, sha: await sha(path) })));
         await writeFile(proofPath, JSON.stringify({ id, old, video, hashes }));
-        console.log('Vèo 0.3.24 đã chép lời, lưu 6 phiên bản sửa và xuất MP4.');
+        console.log('Vèo 0.3.25 đã chép lời, lưu 6 phiên bản sửa và xuất MP4.');
     } else {
         const { id, old, video, hashes } = JSON.parse(await readFile(proofPath, 'utf8'));
         assert.deepEqual(capture(await call('projects/' + id)), old, 'Nội dung hoặc lịch sử dự án cũ bị đổi');
@@ -117,11 +117,11 @@ try {
         const evidence = join(work, 'minh-chung');
         await mkdir(evidence, { recursive: true });
         await copyFile(video.path, join(evidence, 'Veo-truoc-0323.mp4'));
-        await copyFile(current, join(evidence, 'Veo-sau-0325.mp4'));
+        await copyFile(current, join(evidence, 'Veo-sau-0326.mp4'));
         await writeFile(join(evidence, 'ket-qua.json'), JSON.stringify({
             scenario: process.env.VEO_QA_CASE, history: old.revs.length, preservedFiles: hashes.length,
             frames: Number(streams[0].nb_frames), ssim, platform: process.platform,
-            from: '0.3.24', to: '0.3.25', workerSha256: await sha(join(worker, 'dung-app.mjs')),
+            from: '0.3.25', to: '0.3.26', workerSha256: await sha(join(worker, 'dung-app.mjs')),
             oldMp4Sha256: await sha(video.path), newMp4Sha256: await sha(current), uiExportAndReopen: true,
         }, null, 2) + '\n');
         console.log('Giữ ' + old.revs.length + ' phiên bản và ' + hashes.length + ' tệp. MP4 xuất từ Vèo có ' + streams[0].nb_frames + ' khung, SSIM ' + ssim + '.');

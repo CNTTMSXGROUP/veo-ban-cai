@@ -12,8 +12,8 @@ if ((Split-Path -Path $Qa -Parent) -ne $env:RUNNER_TEMP) {
 }
 
 $Seed = Join-Path $PSScriptRoot 'kiem-kho-nang-cap.mjs'
-$Old = Join-Path $Qa 'Veo_0.3.24_x64-setup.exe'
-$New = Join-Path $Qa 'Veo_0.3.25_x64-setup.exe'
+$Old = Join-Path $Qa 'Veo_0.3.25_x64-setup.exe'
+$New = Join-Path $Qa 'Veo_0.3.26_x64-setup.exe'
 $Custom = $Ca -eq 'tu-chon'
 $Install = if ($Custom) { Join-Path $Qa 'Bản cài Vèo tự chọn' } else { Join-Path $env:LOCALAPPDATA 'Vèo' }
 $AppFile = Join-Path $Install 'msx-phong-dung.exe'
@@ -90,7 +90,7 @@ function Open-KhoCu {
     $Skip = Find-Ui $App 'Dùng ngay'
     if ($Skip -and $Skip.Current.IsEnabled) { Click-Ui $Skip }
     Find-Ui $App 'Xem Kho cũ · Ba thẻ màu'
-  } 65 'Chưa mở được dự án cũ trong Vèo 0.3.24.'
+  } 65 'Chưa mở được dự án cũ trong Vèo 0.3.25.'
   return $App
 }
 
@@ -106,11 +106,11 @@ function Find-Veo {
 $InstallArgs = if ($Custom) { @('/S',"/D=$Install") } else { @('/S') }
 $P = Start-Process $Old -ArgumentList $InstallArgs -PassThru
 Write-Host "VEO_QA_INSTALLER_PID=$($P.Id)"
-if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài 0.3.24 quá thời gian.' }
-if ($P.ExitCode -ne 0 -or (Get-AppFileVersion) -notmatch '^0\.3\.24(\.0)?$') { throw 'Sai phiên bản trước cập nhật.' }
+if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài 0.3.25 quá thời gian.' }
+if ($P.ExitCode -ne 0 -or (Get-AppFileVersion) -notmatch '^0\.3\.25(\.0)?$') { throw 'Sai phiên bản trước cập nhật.' }
 $OldHash = (Get-FileHash -LiteralPath $AppFile).Hash
 & (Join-Path $Install 'node.exe') $Seed 'truoc' $Install $Qa
-if ($LASTEXITCODE -ne 0) { throw 'Không tạo được kho thử 0.3.24.' }
+if ($LASTEXITCODE -ne 0) { throw 'Không tạo được kho thử 0.3.25.' }
 
 $Session = Join-Path $Data 'dang-nhap.json'
 $env:DUNG_CHEP_LOI = 'may'
@@ -138,7 +138,7 @@ try {
   # Chặn WebView2 ra Internet trước khi tạo phiên tổng hợp.
   $App = Start-Process $AppFile -WorkingDirectory $Install -PassThru
   Write-Host "VEO_QA_APP_PID=$($App.Id)"
-  $null = Wait-Moc { Find-Ui $App 'Tiếp tục với Google' } 60 'Bản 0.3.24 chưa mở màn đăng nhập.'
+  $null = Wait-Moc { Find-Ui $App 'Tiếp tục với Google' } 60 'Bản 0.3.25 chưa mở màn đăng nhập.'
   $Browser = Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" |
     Where-Object ParentProcessId -eq $App.Id | Select-Object -First 1
   if (!$Browser.ExecutablePath -or @((Get-NetFirewallProfile) | Where-Object Enabled -ne 'True').Count) {
@@ -160,30 +160,30 @@ try {
   if ($CheDo -eq 'thay') {
     # Trước khi phát hành: chạy bộ cài mới đè lên bản đã phát hành, đúng tham số trình cập nhật dùng.
     Press-Ui $App '%{F4}'
-    if (!$App.WaitForExit(25000)) { throw 'Không đóng được bản 0.3.24.' }
+    if (!$App.WaitForExit(25000)) { throw 'Không đóng được bản 0.3.25.' }
     $P = Start-Process $New -ArgumentList @('/P','/UPDATE') -PassThru
     Write-Host "VEO_QA_INSTALLER_PID=$($P.Id)"
-    if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài đè 0.3.25 quá thời gian.' }
-    if ($P.ExitCode -ne 0) { throw "Bộ cài 0.3.25 trả mã $($P.ExitCode)." }
+    if (!$P.WaitForExit(240000)) { $P.Kill($true); throw 'Cài đè 0.3.26 quá thời gian.' }
+    if ($P.ExitCode -ne 0) { throw "Bộ cài 0.3.26 trả mã $($P.ExitCode)." }
   } else {
     $Button = Wait-Moc {
       $Later = Find-Ui $App 'Để sau'
       if ($Later -and $Later.Current.IsEnabled) { Click-Ui $Later }
-      $Item = Find-Ui $App 'Cập nhật bản 0.3.25'
+      $Item = Find-Ui $App 'Cập nhật bản 0.3.26'
       if ($Item -and $Item.Current.IsEnabled) { $Item }
-    } 300 'Bản 0.3.24 chưa thấy bản 0.3.25 công khai.'
+    } 300 'Bản 0.3.25 chưa thấy bản 0.3.26 công khai.'
     $null = Wait-Moc { Save-Ui $App '02-goi-da-san-sang' } 12 'Không chụp được nút cập nhật.'
     if ($Custom) { Press-Ui $App '%{F4}' } else {
-      # Bản 0.3.24: nút trên thanh công cụ chỉ mở hộp "có gì mới", cài bằng nút trong hộp.
+      # Bản 0.3.25: nút trên thanh công cụ chỉ mở hộp "có gì mới", cài bằng nút trong hộp.
       Focus-Ui $App; Click-Ui $Button
       Click-Ui (Wait-Moc { $N = Find-Ui $App 'Cập nhật ngay'; if ($N -and $N.Current.IsEnabled) { $N } } 20 'Không thấy nút Cập nhật ngay.')
     }
-    if (!$App.WaitForExit(120000)) { throw 'Vèo 0.3.24 còn chạy sau lệnh cài.' }
+    if (!$App.WaitForExit(120000)) { throw 'Vèo 0.3.25 còn chạy sau lệnh cài.' }
   }
   $null = Wait-Moc {
-    (Get-AppFileVersion) -match '^0\.3\.25(\.0)?$' -and
-      (Get-ItemPropertyValue -Path $Key -Name DisplayVersion -ErrorAction SilentlyContinue) -match '^0\.3\.25(\.0)?$'
-  } 180 'Trình cài chưa hoàn tất nâng tại chỗ lên 0.3.25.'
+    (Get-AppFileVersion) -match '^0\.3\.26(\.0)?$' -and
+      (Get-ItemPropertyValue -Path $Key -Name DisplayVersion -ErrorAction SilentlyContinue) -match '^0\.3\.26(\.0)?$'
+  } 180 'Trình cài chưa hoàn tất nâng tại chỗ lên 0.3.26.'
   $Location = (Get-ItemPropertyValue -Path $Key -Name InstallLocation).Trim('"')
   if ($Location -ne $Install) { throw "Bộ cài đã đổi thư mục cài: $Location" }
   if ($CheDo -eq 'that' -and !$Custom) {
@@ -191,7 +191,7 @@ try {
     try {
       # Chờ cả cửa sổ, không chỉ tiến trình vừa sinh ra.
       $App = Wait-Moc { $P = Find-Veo; if ($P) { $P.Refresh(); if ($P.MainWindowHandle -ne [IntPtr]::Zero) { $P } } } 120 'Vèo chưa tự mở sau khi bấm Cập nhật.'
-      Write-Host "Bản 0.3.25 tự mở lại sau $([int]([DateTime]::UtcNow - $Moc).TotalSeconds) giây"
+      Write-Host "Bản 0.3.26 tự mở lại sau $([int]([DateTime]::UtcNow - $Moc).TotalSeconds) giây"
       Start-Sleep -Seconds 3
       try { $null = Save-Ui $App '02b-tu-mo-lai' } catch { Write-Host 'Không chụp được cửa sổ tự mở lại.' }
       $null = $App.CloseMainWindow()
@@ -213,9 +213,9 @@ try {
   }
   $App = Open-KhoCu
   Focus-Ui $App
-  $null = Wait-Moc { Find-Ui $App 'Vèo 0.3.25' } 25 'Giao diện chưa báo 0.3.25.'
+  $null = Wait-Moc { Find-Ui $App 'Vèo 0.3.26' } 25 'Giao diện chưa báo 0.3.26.'
   $null = Wait-Moc { Save-Ui $App '03-kho-cu-sau-cap-nhat' } 12 'Không chụp được dự án cũ sau cập nhật.'
-  $ProofOld = Get-Content -LiteralPath (Join-Path $Qa 'kho-0.3.24.json') -Raw -Encoding utf8 | ConvertFrom-Json
+  $ProofOld = Get-Content -LiteralPath (Join-Path $Qa 'kho-0.3.25.json') -Raw -Encoding utf8 | ConvertFrom-Json
   $Out = Join-Path $Data "du-an/$($ProofOld.id)/xuat"
   $OldFiles = @((Get-ChildItem -LiteralPath $Out -File -Filter '*.mp4').FullName)
   Click-Ui (Wait-Moc { Find-Ui $App 'Xuất lại' } 35 'Vèo chưa mở đúng dự án cũ đã xuất.')
