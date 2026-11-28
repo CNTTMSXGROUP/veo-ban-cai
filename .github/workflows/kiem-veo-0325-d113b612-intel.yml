@@ -1,13 +1,13 @@
-name: Kiểm Vèo 0.3.25 trên Mac Intel
+name: Kiểm Vèo 0.3.25 trên Apple Silicon
 on:
   push:
-    branches: [kiem-cap-nhat-cong-khai-0325]
+    branches: [kiem-cap-nhat-arm64-0325]
     paths: [.github/workflows/kiem-veo-0325-d113b612-intel.yml]
 permissions:
   contents: write
 jobs:
-  mac-intel:
-    runs-on: macos-15-intel
+  mac-arm64:
+    runs-on: macos-26
     timeout-minutes: 22
     steps:
       - name: Bấm cập nhật công khai, mở Vèo, xuất và phát lại từ kho cũ
@@ -20,11 +20,11 @@ jobs:
           qa="$RUNNER_TEMP/veo-qa-mac-cap-nhat"
           mkdir -p "$qa/cu" "$qa/moi"
           cd "$qa"
-          ten_cu=Veo_0.3.24_x64.app.tar.gz; ten_moi=Veo_0.3.25_x64.app.tar.gz
+          ten_cu=Veo_0.3.24_aarch64.app.tar.gz; ten_moi=Veo_0.3.25_aarch64.app.tar.gz
           gh release download v0.3.24 -R "$GITHUB_REPOSITORY" --dir cu --pattern "$ten_cu"
           gh release download v0.3.25 -R "$GITHUB_REPOSITORY" --dir moi --pattern "$ten_moi"
           gh release download veo-qa-windows-20261126-7bc6cdf -R "$GITHUB_REPOSITORY" --pattern qa-upgrade-voice.mp4
-          printf '%s\n' "7109962c26053804cbf8c6b9a989f2f06211d5311caa0d0486d40624077cdf97  cu/$ten_cu" "ff6512986b7d3aae396587b6cd90c1696dc7d611c11370c8c32454764007ebca  moi/$ten_moi" '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
+          printf '%s\n' "dc5b960cc1285bdd07f5260b8e43e54830dda40418a12d3bb071f5e97131d308  cu/$ten_cu" "e2d5e9e43ac6c0f7a0ccfc3ea8e8c5cf233bf25ff99e800f5b88b84cce4d1966  moi/$ten_moi" '4c99742130fb5cecd2f8f5ad7c8c3f718b11ea668b4e93ff9b2ac971606cff71  qa-upgrade-voice.mp4' | shasum -a 256 -c
           curl -fLsS --max-time 140 --retry 2 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin?download=true' -o ggml-base.en-q5_1.bin
           printf '%s\n' '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f  ggml-base.en-q5_1.bin' | shasum -a 256 -c
           base="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/mac"
@@ -35,7 +35,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: veo-0325-mac-intel-updater
+          name: veo-0325-mac-arm64-updater
           path: ${{ runner.temp }}/veo-qa-mac-cap-nhat/minh-chung
           if-no-files-found: warn
           retention-days: 30
